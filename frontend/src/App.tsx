@@ -7,6 +7,7 @@ import { Sidebar } from './components/Sidebar'
 import { StudyLessons } from './pages/StudyLessons'
 import { StudyNouns } from './pages/StudyNouns'
 import { StudyVerbs } from './pages/StudyVerbs'
+import { Exercise } from './pages/Exercise'
 
 function StudyLayout({ lessons }: { lessons: LessonMeta[] }) {
   const onLessons = useMatch('/study/lessons/:lessonId')
@@ -36,14 +37,7 @@ function AppShell({ lessons }: { lessons: LessonMeta[] }) {
       <Routes>
         <Route path="/" element={<Navigate to="/study/lessons/1" replace />} />
         <Route path="/study/*" element={<StudyLayout lessons={lessons} />} />
-        <Route
-          path="/exercise"
-          element={
-            <main className="flex-1 flex items-center justify-center text-slate-400 text-lg p-8">
-              Exercise mode — coming soon
-            </main>
-          }
-        />
+        <Route path="/exercise" element={<Exercise />} />
         <Route path="*" element={<Navigate to="/study/lessons/1" replace />} />
       </Routes>
     </div>
