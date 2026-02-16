@@ -1,0 +1,88 @@
+{
+  "lessons": [
+    {
+      "id": 1,
+      "title": "Hallo! Ich bin Nicole...",
+      "hasNouns": true,
+      "hasVerbs": true
+    },
+    {
+      "id": 2,
+      "title": "Ich bin Journalistin.",
+      "hasNouns": true,
+      "hasVerbs": true
+    },
+    {
+      "id": 3,
+      "title": "Das ist meine Mutter.",
+      "hasNouns": true,
+      "hasVerbs": false
+    },
+    {
+      "id": 4,
+      "title": "Der Tisch ist schön!",
+      "hasNouns": true,
+      "hasVerbs": true
+    },
+    {
+      "id": 5,
+      "title": "Was ist das? – Das ist ein F.",
+      "hasNouns": true,
+      "hasVerbs": true
+    },
+    {
+      "id": 6,
+      "title": "Ich brauche kein Büro.",
+      "hasNouns": true,
+      "hasVerbs": true
+    },
+    {
+      "id": 7,
+      "title": "Du kannst wirklich toll...!",
+      "hasNouns": false,
+      "hasVerbs": true
+    },
+    {
+      "id": 8,
+      "title": "Kein Problem. Ich habe Zeit!",
+      "hasNouns": true,
+      "hasVerbs": true
+    },
+    {
+      "id": 9,
+      "title": "Ich möchte was essen, Onkel Harry.",
+      "hasNouns": true,
+      "hasVerbs": true
+    },
+    {
+      "id": 10,
+      "title": "Ich steige jetzt in die U-Bahn ein.",
+      "hasNouns": true,
+      "hasVerbs": true
+    },
+    {
+      "id": 11,
+      "title": "Was hast du heute gemacht?",
+      "hasNouns": true,
+      "hasVerbs": true
+    },
+    {
+      "id": 12,
+      "title": "Was ist denn hier passiert?",
+      "hasNouns": true,
+      "hasVerbs": true
+    },
+    {
+      "id": 13,
+      "title": "Wir suchen das Hotel Maritim.",
+      "hasNouns": true,
+      "hasVerbs": true
+    },
+    {
+      "id": 14,
+      "title": "Wo findest du Ottos Haus?",
+      "hasNouns": true,
+      "hasVerbs": true
+    }
+  ]
+}
