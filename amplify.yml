@@ -3,14 +3,16 @@ frontend:
   phases:
     preBuild:
       commands:
-        - npm ci
+        - cd frontend && npm ci
+        - python3 ingestion/split_lessons.py
+        - python3 ingestion/merge_tables.py
     build:
       commands:
-        - npm run build
+        - cd frontend && npm run build
   artifacts:
-    baseDirectory: dist
+    baseDirectory: frontend/dist
     files:
       - '**/*'
   cache:
     paths:
-      - node_modules/**/*
+      - frontend/node_modules/**/*
