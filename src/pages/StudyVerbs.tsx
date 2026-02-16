@@ -1,20 +1,15 @@
-import { useParams } from 'react-router-dom'
 import { useMarkdown } from '../hooks/useMarkdown'
 import { MarkdownViewer } from '../components/MarkdownViewer'
 
 export function StudyVerbs() {
-  const { lessonId } = useParams<{ lessonId: string }>()
-  const id = parseInt(lessonId ?? '1', 10)
-  const padded = String(id).padStart(2, '0')
-  const { content, loading, error } = useMarkdown(`/data/a1/verbs/lesson_${padded}.md`)
+  const { content, loading, error } = useMarkdown('/data/a1/verbs/all.md')
 
   if (loading) return <div className="p-6 text-slate-500">Loading...</div>
   if (error) return <div className="p-6 text-red-500">Error loading verbs: {error}</div>
-  if (!content || content.trim() === '')
-    return <div className="p-6 text-slate-400 italic">No verb data for this lesson.</div>
+  if (!content) return <div className="p-6 text-slate-400 italic">No verb data available.</div>
 
   return (
-    <div className="p-6 overflow-y-auto">
+    <div className="p-6">
       <MarkdownViewer content={content} />
     </div>
   )

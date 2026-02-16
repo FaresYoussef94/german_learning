@@ -1,11 +1,6 @@
 import { NavLink, useParams } from 'react-router-dom'
-import type { LessonMeta } from '../types'
 
-interface Props {
-  lesson: LessonMeta | undefined;
-}
-
-export function StudySubNav({ lesson }: Props) {
+export function StudySubNav() {
   const { lessonId } = useParams<{ lessonId: string }>()
   const id = lessonId ?? '1'
 
@@ -24,13 +19,11 @@ export function StudySubNav({ lesson }: Props) {
         Lessons
       </NavLink>
       <NavLink
-        to={`/study/nouns/${id}`}
+        to="/study/nouns"
         className={({ isActive }) =>
           `px-4 py-1.5 rounded text-sm font-medium transition-colors ${
             isActive
               ? 'bg-blue-50 text-blue-700 border border-blue-200'
-              : lesson && !lesson.hasNouns
-              ? 'text-slate-300 cursor-default pointer-events-none'
               : 'text-slate-600 hover:bg-slate-100'
           }`
         }
@@ -38,13 +31,11 @@ export function StudySubNav({ lesson }: Props) {
         Nouns
       </NavLink>
       <NavLink
-        to={`/study/verbs/${id}`}
+        to="/study/verbs"
         className={({ isActive }) =>
           `px-4 py-1.5 rounded text-sm font-medium transition-colors ${
             isActive
               ? 'bg-blue-50 text-blue-700 border border-blue-200'
-              : lesson && !lesson.hasVerbs
-              ? 'text-slate-300 cursor-default pointer-events-none'
               : 'text-slate-600 hover:bg-slate-100'
           }`
         }

@@ -4,7 +4,7 @@ export function TopNav() {
   const { lessonId } = useParams<{ lessonId: string }>()
   const id = lessonId ?? '1'
 
-  const isExercise = useMatch('/exercise/*')
+  const isStudy = useMatch('/study/*')
 
   return (
     <header className="bg-blue-700 text-white px-6 py-3 flex items-center gap-6 shadow-md">
@@ -12,9 +12,9 @@ export function TopNav() {
       <nav className="flex gap-2">
         <NavLink
           to={`/study/lessons/${id}`}
-          className={({ isActive }) =>
+          className={() =>
             `px-4 py-1.5 rounded font-medium transition-colors ${
-              !isExercise && isActive
+              isStudy
                 ? 'bg-white text-blue-700'
                 : 'text-blue-100 hover:bg-blue-600'
             }`

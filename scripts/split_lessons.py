@@ -2,7 +2,6 @@
 """Split monolithic German lesson markdown files into per-lesson files."""
 
 import json
-import os
 import re
 from pathlib import Path
 
@@ -67,20 +66,10 @@ def write_lesson_files(sections: dict[int, str], out_subdir: Path, total_lessons
 
 
 def main():
-    # Read source files
+    # Read and split lesson summaries only
     lessons_md = (DATA_DIR / "German_Lesson_Summary.md").read_text(encoding="utf-8")
-    nouns_md = (DATA_DIR / "German_Nouns.md").read_text(encoding="utf-8")
-    verbs_md = (DATA_DIR / "German_Verbs.md").read_text(encoding="utf-8")
-
-    # Split each file
     lesson_sections = split_by_lesson(lessons_md)
-    noun_sections = split_by_lesson(nouns_md)
-    verb_sections = split_by_lesson(verbs_md)
-
-    # Write per-lesson files
-    lessons_with_content = write_lesson_files(lesson_sections, OUT_DIR / "lessons")
-    nouns_with_content = write_lesson_files(noun_sections, OUT_DIR / "nouns")
-    verbs_with_content = write_lesson_files(verb_sections, OUT_DIR / "verbs")
+    write_lesson_files(lesson_sections, OUT_DIR / "lessons")
 
     # Generate index.json
     index = {
@@ -88,8 +77,6 @@ def main():
             {
                 "id": lesson_num,
                 "title": LESSON_TITLES[lesson_num],
-                "hasNouns": lesson_num in nouns_with_content,
-                "hasVerbs": lesson_num in verbs_with_content,
             }
             for lesson_num in range(1, 15)
         ]
@@ -99,8 +86,6 @@ def main():
     index_path.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print(f"Generated index.json with {len(index['lessons'])} lessons")
-    print(f"Lessons with noun data: {sorted(nouns_with_content)}")
-    print(f"Lessons with verb data: {sorted(verbs_with_content)}")
     print(f"Output directory: {OUT_DIR}")
 
 
