@@ -1,1 +1,15 @@
+# macOS
 .DS_Store
+
+# Node
+node_modules/
+
+# Build output
+dist/
+
+# Vite
+*.local
+
+# Editor
+.vscode/
+.idea/
