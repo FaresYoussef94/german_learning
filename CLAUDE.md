@@ -53,9 +53,14 @@ All content (lessons, nouns, verbs, exercises) is API-driven:
 - **Structured data in DynamoDB** (nouns, verbs, exercises) for efficient queries
 - **Three separate Bedrock calls** (one for summary, one for nouns, one for verbs) for reliable generation
 - **Bedrock converse() API** (modern, better response handling than invoke_model)
-- **Deduplication**: within-lesson (parse_markdown_table) + across-lesson (lesson_api query)
+- **Three-tier DynamoDB structure** (lessons + top-level aggregates + hourly rebuild)
+  - Lesson items: `PK=level, SK=lesson#{id}` (complete lesson data)
+  - Aggregates: `PK=level, SK=nouns|verbs|exercises#{type}` (deduplicated cross-lesson data)
+  - Hourly rebuild: EventBridge triggers aggregate rebuild every hour (handles concurrent uploads safely)
+- **Deduplication**: within-lesson (parse_markdown_table) + across-lesson (aggregate rebuild)
 - **Exercise types simplified**: nouns + verbs only (removed "lesson grammar" type)
 - **PDFs are scanned images** → Amazon Textract required for OCR
 - **Async Textract polling** with 10-min timeout (fixed: checks JobStatus not Pages[0].Status)
-- **DynamoDB schema**: PK=`level` (`"a1"`), SK=`typeLesson` (`"lesson#03"`)
 - **All frontend pages fetch from API endpoints** (no static files)
+- **Performance optimization**: Cross-lesson queries use aggregates (10-50x faster than querying all lessons)
+- **User feedback curation**: Delete/improve exercises with AI regeneration via Bedrock

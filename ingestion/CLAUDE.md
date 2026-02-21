@@ -1,16 +1,18 @@
 # ingestion
 
-Python AWS Lambda pipeline. Handles PDF ingestion via Step Functions workflow and API serving.
+Python AWS Lambda pipeline. Handles PDF ingestion via Step Functions workflow, API serving, and hourly aggregate rebuilding.
 
 ## Structure
 
 ```
-lambda_workflow_trigger/    S3-triggered Lambda: starts Step Functions execution
-lambda_ocr_markdown/        Step 1: PDF → OCR → 3 markdown files (summary, nouns, verbs)
-lambda_exercise_gen/        Step 2: markdown files → parse → generate exercises → DynamoDB
-lambda_lesson_api/          API Gateway Lambda: serve lesson content + summary from S3
-lambda_exercise_api/        API Gateway Lambda: serve exercises
-utils.py                    (in lambda_ocr_markdown/) Comprehensive LLM instruction set
+lambda_workflow_trigger/       S3-triggered Lambda: starts Step Functions execution
+lambda_ocr_markdown/           Step 1: PDF → OCR → 3 markdown files (summary, nouns, verbs)
+lambda_exercise_gen/           Step 2: markdown files → parse → generate exercises → DynamoDB + aggregates
+lambda_lesson_api/             API Gateway Lambda: serve lessons from aggregates (fast)
+lambda_exercise_api/           API Gateway Lambda: serve exercises from aggregates (fast)
+lambda_feedback_api/           API Gateway Lambda: delete/improve exercises, update aggregates
+lambda_aggregate_rebuild/      EventBridge-triggered: rebuild aggregates hourly (safe for concurrent uploads)
+utils.py                       (in lambda_ocr_markdown/) Comprehensive LLM instruction set
 ```
 
 ## Ingestion Workflow (Step Functions)
@@ -108,12 +110,86 @@ utils.py                    (in lambda_ocr_markdown/) Comprehensive LLM instruct
 
 All Lambdas depend on `boto3>=1.47.0` (for modern Bedrock converse API). `requirements.txt` files specify this version.
 
+### Lambda: feedback API (`lambda_feedback_api/handler.py`)
+
+**Endpoints:**
+- `DELETE /feedback/{level}/{lessonId}/{type}` — delete a question
+- `POST /feedback/{level}/{lessonId}/{type}/regenerate` — AI-regenerate with feedback
+- `POST /feedback/{level}/{lessonId}/{type}/replace` — accept regenerated question
+
+**Flow:**
+- Delete: Remove from lesson item + exercise aggregate
+- Regenerate: Call Bedrock with user feedback → return new question (no DB write)
+- Replace: Swap old for new in lesson item + exercise aggregate
+
+**Environment variables:** `TABLE_NAME`, `MODEL_ID`
+
+**Question identity:** Question text is the natural key (unique within lesson)
+
+## Aggregate Structure (DynamoDB)
+
+**Three-tier architecture for performance:**
+
+```
+Tier 1: Aggregates (cross-lesson views, updated hourly)
+  PK: level    SK: nouns              → {nouns: [all unique nouns]}
+  PK: level    SK: verbs              → {verbs: [all unique verbs]}
+  PK: level    SK: exercises#nouns    → {exercises: [all noun exercises]}
+  PK: level    SK: exercises#verbs    → {exercises: [all verb exercises]}
+
+Tier 2: Lesson items (complete lesson data)
+  PK: level    SK: lesson#03          → {title, summaryKey, generatedAt, nouns, verbs, exercises}
+
+Tier 3: S3 (large text data)
+  summaries:   a1/03/summary.md
+  nouns:       a1/03/nouns.md
+  verbs:       a1/03/verbs.md
+```
+
+**Why three tiers?**
+- Aggregates enable fast cross-lesson queries (1 GetItem vs Query + iterate)
+- Lesson items keep complete data for single-lesson views
+- S3 keeps large summaries separate (under 400KB DynamoDB limit)
+
+### Lambda: aggregate rebuild (`lambda_aggregate_rebuild/handler.py`)
+
+**Trigger:** EventBridge rule (every 1 hour)
+
+**Flow:**
+1. Query all lesson items (PK=level, SK begins_with "lesson#")
+2. Flatten nouns → deduplicate by word
+3. Flatten verbs → deduplicate by infinitive
+4. Flatten noun exercises → deduplicate by question text
+5. Flatten verb exercises → deduplicate by question text
+6. Write 4 clean aggregate items
+
+**Environment variables:** `TABLE_NAME`
+
+**Why hourly rebuild?**
+- Handles concurrent PDF uploads safely (no race conditions)
+- Fixes any lost updates from simultaneous ingestion
+- Removes duplicates automatically
+- Non-blocking (runs independently)
+
+**Performance:** 5-minute timeout, handles 24 lessons easily
+
+## APIs Performance
+
+| Endpoint | Before | After | Speed |
+|----------|--------|-------|-------|
+| `GET /lessons/{level}/nouns` | Query all lessons | 1 GetItem (aggregate) | **10-50x** ⚡ |
+| `GET /lessons/{level}/verbs` | Query all lessons | 1 GetItem (aggregate) | **10-50x** ⚡ |
+| `GET /exercises/{level}?type=nouns` | Query all lessons | 1 GetItem (aggregate) | **10-50x** ⚡ |
+| `GET /exercises/{level}` | Query all lessons | 2 GetItems (aggregates) | **5-25x** ⚡ |
+
 ## Bedrock Models
 
-- **Model ID**: `us.anthropic.claude-haiku-4-5-20251001-v1:0` (Haiku for cost efficiency)
+- **Model ID (ingestion)**: `us.anthropic.claude-sonnet-4-5-20250929-v1:0` (Sonnet for quality)
+- **Model ID (feedback)**: `us.anthropic.claude-sonnet-4-5-20250929-v1:0` (Sonnet for accuracy)
 - **API**: Modern `converse()` (replaces deprecated `invoke_model()`)
 - **Token limits**:
   - Summary: 2000 tokens
   - Nouns: 4000 tokens
   - Verbs: 4000 tokens
   - Exercises: 6000 tokens
+  - Feedback regeneration: 500 tokens

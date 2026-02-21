@@ -172,6 +172,124 @@ Return only the JSON object with all questions including their topic fields."""
     return json.loads(text)
 
 
+def update_aggregates(
+    level: str,
+    nouns_list: list,
+    verbs_list: list,
+    exercises_data: dict,
+) -> None:
+    """Merge new nouns/verbs/exercises into aggregate items, deduplicating."""
+    table = dynamodb.Table(TABLE_NAME)
+
+    # Update nouns aggregate
+    logger.info("Updating nouns aggregate...")
+    try:
+        response = table.get_item(Key={"level": level, "typeLesson": "nouns"})
+        existing_nouns = response.get("Item", {}).get("nouns", [])
+
+        # Merge and deduplicate by word
+        seen = {n.get("word") for n in existing_nouns}
+        merged_nouns = list(existing_nouns)
+        for noun in nouns_list:
+            word = noun.get("word")
+            if word and word not in seen:
+                merged_nouns.append(noun)
+                seen.add(word)
+
+        table.put_item(
+            Item={"level": level, "typeLesson": "nouns", "nouns": merged_nouns}
+        )
+        logger.info(f"Updated nouns aggregate: {len(merged_nouns)} total nouns")
+    except Exception as e:
+        logger.error(f"Failed to update nouns aggregate: {e}")
+        raise
+
+    # Update verbs aggregate
+    logger.info("Updating verbs aggregate...")
+    try:
+        response = table.get_item(Key={"level": level, "typeLesson": "verbs"})
+        existing_verbs = response.get("Item", {}).get("verbs", [])
+
+        # Merge and deduplicate by infinitive
+        seen = {v.get("infinitive") for v in existing_verbs}
+        merged_verbs = list(existing_verbs)
+        for verb in verbs_list:
+            infinitive = verb.get("infinitive")
+            if infinitive and infinitive not in seen:
+                merged_verbs.append(verb)
+                seen.add(infinitive)
+
+        table.put_item(
+            Item={"level": level, "typeLesson": "verbs", "verbs": merged_verbs}
+        )
+        logger.info(f"Updated verbs aggregate: {len(merged_verbs)} total verbs")
+    except Exception as e:
+        logger.error(f"Failed to update verbs aggregate: {e}")
+        raise
+
+    # Update exercises#nouns aggregate
+    logger.info("Updating exercises#nouns aggregate...")
+    try:
+        response = table.get_item(
+            Key={"level": level, "typeLesson": "exercises#nouns"}
+        )
+        existing_exercises = response.get("Item", {}).get("exercises", [])
+
+        # Merge exercises (deduplicate by question text)
+        seen_questions = {ex.get("question") for ex in existing_exercises}
+        merged_exercises = list(existing_exercises)
+        for exercise in exercises_data.get("nouns", []):
+            question = exercise.get("question")
+            if question and question not in seen_questions:
+                merged_exercises.append(exercise)
+                seen_questions.add(question)
+
+        table.put_item(
+            Item={
+                "level": level,
+                "typeLesson": "exercises#nouns",
+                "exercises": merged_exercises,
+            }
+        )
+        logger.info(
+            f"Updated exercises#nouns aggregate: {len(merged_exercises)} total exercises"
+        )
+    except Exception as e:
+        logger.error(f"Failed to update exercises#nouns aggregate: {e}")
+        raise
+
+    # Update exercises#verbs aggregate
+    logger.info("Updating exercises#verbs aggregate...")
+    try:
+        response = table.get_item(
+            Key={"level": level, "typeLesson": "exercises#verbs"}
+        )
+        existing_exercises = response.get("Item", {}).get("exercises", [])
+
+        # Merge exercises (deduplicate by question text)
+        seen_questions = {ex.get("question") for ex in existing_exercises}
+        merged_exercises = list(existing_exercises)
+        for exercise in exercises_data.get("verbs", []):
+            question = exercise.get("question")
+            if question and question not in seen_questions:
+                merged_exercises.append(exercise)
+                seen_questions.add(question)
+
+        table.put_item(
+            Item={
+                "level": level,
+                "typeLesson": "exercises#verbs",
+                "exercises": merged_exercises,
+            }
+        )
+        logger.info(
+            f"Updated exercises#verbs aggregate: {len(merged_exercises)} total exercises"
+        )
+    except Exception as e:
+        logger.error(f"Failed to update exercises#verbs aggregate: {e}")
+        raise
+
+
 def main(event, context):
     logger.info("Exercise generation triggered: %s", json.dumps(event))
 
@@ -222,6 +340,10 @@ def main(event, context):
 
         logger.info(f"Writing lesson {lesson_id} to DynamoDB...")
         table.put_item(Item=item)
+
+        # Update aggregates for fast cross-lesson queries
+        logger.info("Updating aggregates for fast queries...")
+        update_aggregates(level, nouns_list, verbs_list, exercises_data)
 
         logger.info(f"Ingestion complete for lesson {lesson_id}")
         return {

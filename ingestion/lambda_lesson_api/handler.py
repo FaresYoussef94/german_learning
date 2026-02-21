@@ -82,59 +82,63 @@ def lesson_index(level: str) -> dict:
 
 
 def all_nouns(level: str) -> dict:
-    """GET /lessons/{level}/nouns — flatten all nouns from all lessons."""
-    items = query_lessons(level)
-    if not items:
+    """GET /lessons/{level}/nouns — read pre-computed aggregate (fast)."""
+    table = dynamodb.Table(TABLE_NAME)
+    try:
+        response = table.get_item(
+            Key={'level': level, 'typeLesson': 'nouns'}
+        )
+        item = response.get('Item')
+        if not item:
+            return {
+                'statusCode': 404,
+                'headers': get_headers(),
+                'body': json.dumps({'error': 'not_generated'}),
+            }
+
+        all_nouns_list = item.get('nouns', [])
         return {
-            'statusCode': 404,
+            'statusCode': 200,
             'headers': get_headers(),
-            'body': json.dumps({'error': 'not_generated'}),
+            'body': json.dumps(all_nouns_list),
         }
-
-    all_nouns_list = []
-    seen = set()
-
-    for item in items:
-        nouns = item.get('nouns', [])
-        for noun in nouns:
-            # Deduplicate by word
-            if noun.get('word') not in seen:
-                all_nouns_list.append(noun)
-                seen.add(noun.get('word'))
-
-    return {
-        'statusCode': 200,
-        'headers': get_headers(),
-        'body': json.dumps(all_nouns_list),
-    }
+    except Exception as e:
+        logger.error(f"Failed to fetch nouns aggregate: {e}")
+        return {
+            'statusCode': 500,
+            'headers': get_headers(),
+            'body': json.dumps({'error': 'internal_error'}),
+        }
 
 
 def all_verbs(level: str) -> dict:
-    """GET /lessons/{level}/verbs — flatten all verbs from all lessons."""
-    items = query_lessons(level)
-    if not items:
+    """GET /lessons/{level}/verbs — read pre-computed aggregate (fast)."""
+    table = dynamodb.Table(TABLE_NAME)
+    try:
+        response = table.get_item(
+            Key={'level': level, 'typeLesson': 'verbs'}
+        )
+        item = response.get('Item')
+        if not item:
+            return {
+                'statusCode': 404,
+                'headers': get_headers(),
+                'body': json.dumps({'error': 'not_generated'}),
+            }
+
+        all_verbs_list = item.get('verbs', [])
         return {
-            'statusCode': 404,
+            'statusCode': 200,
             'headers': get_headers(),
-            'body': json.dumps({'error': 'not_generated'}),
+            'body': json.dumps(all_verbs_list),
         }
-
-    all_verbs_list = []
-    seen = set()
-
-    for item in items:
-        verbs = item.get('verbs', [])
-        for verb in verbs:
-            # Deduplicate by infinitive
-            if verb.get('infinitive') not in seen:
-                all_verbs_list.append(verb)
-                seen.add(verb.get('infinitive'))
-
-    return {
-        'statusCode': 200,
-        'headers': get_headers(),
-        'body': json.dumps(all_verbs_list),
-    }
+    except Exception as e:
+        logger.error(f"Failed to fetch verbs aggregate: {e}")
+        return {
+            'statusCode': 500,
+            'headers': get_headers(),
+            'body': json.dumps({'error': 'internal_error'}),
+        }
 
 
 def single_lesson(level: str, lesson_id: str) -> dict:

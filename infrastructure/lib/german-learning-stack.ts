@@ -7,6 +7,8 @@ import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as sfn from "aws-cdk-lib/aws-stepfunctions";
 import * as tasks from "aws-cdk-lib/aws-stepfunctions-tasks";
+import * as events from "aws-cdk-lib/aws-events";
+import * as targets from "aws-cdk-lib/aws-events-targets";
 import { Construct } from "constructs";
 import * as path from "path";
 
@@ -94,6 +96,7 @@ export class GermanLearningStack extends cdk.Stack {
 
     processedBucket.grantRead(exerciseGenFn);
     exercisesTable.grantWriteData(exerciseGenFn);
+    exercisesTable.grantReadData(exerciseGenFn);
     exerciseGenFn.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ["bedrock:*"],
@@ -199,6 +202,35 @@ export class GermanLearningStack extends cdk.Stack {
         resources: ["*"],
       }),
     );
+
+    // ── Lambda: aggregate rebuild (hourly) ──────────────────────────────────
+    const aggregateRebuildFn = new lambda.Function(
+      this,
+      "AggregateRebuildFunction",
+      {
+        runtime: lambda.Runtime.PYTHON_3_12,
+        handler: "handler.main",
+        code: lambda.Code.fromAsset(
+          path.join(__dirname, "../../ingestion/lambda_aggregate_rebuild"),
+        ),
+        timeout: cdk.Duration.minutes(5),
+        memorySize: 256,
+        environment: {
+          TABLE_NAME: exercisesTable.tableName,
+        },
+      },
+    );
+
+    exercisesTable.grantReadData(aggregateRebuildFn);
+    exercisesTable.grantWriteData(aggregateRebuildFn);
+
+    // ── EventBridge: hourly aggregate rebuild ───────────────────────────────
+    const hourlyRule = new events.Rule(this, "HourlyAggregateRebuild", {
+      schedule: events.Schedule.rate(cdk.Duration.hours(1)),
+      description: "Rebuild vocabulary and exercise aggregates hourly",
+    });
+
+    hourlyRule.addTarget(new targets.LambdaFunction(aggregateRebuildFn));
 
     // ── API Gateway ────────────────────────────────────────────────────────
     const api = new apigateway.RestApi(this, "ExercisesApi", {
