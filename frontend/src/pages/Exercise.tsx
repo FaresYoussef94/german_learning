@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useExercises, type Question } from "../hooks/useExercises";
+import {
+  deleteQuestion,
+  regenerateQuestion,
+  replaceQuestion,
+} from "../hooks/useFeedback";
 
 type FilterType = "all" | "nouns" | "verbs";
 const FILTER_LABELS: Record<FilterType, string> = {
@@ -23,11 +28,15 @@ function QuestionCard({
   index,
   total,
   onAnswer,
+  onDelete,
+  onImprove,
 }: {
   question: Question;
   index: number;
   total: number;
   onAnswer: (correct: boolean) => void;
+  onDelete: () => void;
+  onImprove: () => void;
 }) {
   const [input, setInput] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -54,9 +63,25 @@ function QuestionCard({
         <p className="text-xs text-slate-400 uppercase tracking-wide font-medium">
           Question {index + 1} / {total}
         </p>
-        <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded">
-          {question.topic}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded">
+            {question.topic}
+          </span>
+          <button
+            onClick={onImprove}
+            className="text-sm text-slate-600 hover:text-blue-600 transition-colors"
+            title="Improve this question"
+          >
+            ✏
+          </button>
+          <button
+            onClick={onDelete}
+            className="text-sm text-slate-600 hover:text-red-600 transition-colors"
+            title="Delete this question"
+          >
+            🗑
+          </button>
+        </div>
       </div>
 
       <p className="text-lg font-medium text-slate-800">{question.question}</p>
@@ -127,6 +152,12 @@ function QuestionCard({
   );
 }
 
+type ImproveModeState =
+  | { phase: "idle" }
+  | { phase: "input" }
+  | { phase: "loading" }
+  | { phase: "preview"; previewQuestion: Question; iterationBase: Question };
+
 export function Exercise() {
   const [searchParams, setSearchParams] = useSearchParams();
   const filterType = (searchParams.get("type") ?? "all") as FilterType;
@@ -137,6 +168,12 @@ export function Exercise() {
   const [answered, setAnswered] = useState(false);
   const [finished, setFinished] = useState(false);
   const [shuffledQuestions, setShuffledQuestions] = useState<Question[]>([]);
+
+  const [improveMode, setImproveMode] = useState<ImproveModeState>({
+    phase: "idle",
+  });
+  const [feedbackText, setFeedbackText] = useState("");
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
 
   const { data, loading, error } = useExercises("a1", filterType);
 
@@ -194,6 +231,153 @@ export function Exercise() {
     const questions = data?.questions ?? [];
     const newShuffled = shuffleArray(questions);
     resetExercise(newShuffled);
+  }
+
+  async function handleDelete() {
+    const question = questions[questionIndex];
+    if (!question) return;
+
+    if (
+      !confirm(
+        `Delete this ${question.exerciseType} question?\n\n"${question.question}"`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await deleteQuestion(
+        "a1",
+        question.lessonId || 1,
+        question.exerciseType || "nouns",
+        question.question
+      );
+
+      // Remove from local state
+      const newShuffled = shuffledQuestions.filter(
+        (q) => q.question !== question.question
+      );
+      setShuffledQuestions(newShuffled);
+      setAnswered(false);
+
+      // Move to next question or finish
+      const newTotal = newShuffled.length;
+      if (questionIndex >= newTotal) {
+        if (newTotal === 0) {
+          setFinished(true);
+        } else {
+          setQuestionIndex(Math.max(0, newTotal - 1));
+        }
+      }
+    } catch (err) {
+      alert(`Failed to delete question: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  function handleImproveOpen() {
+    setImproveMode({ phase: "input" });
+    setFeedbackText("");
+    setFeedbackError(null);
+  }
+
+  async function handleRegenerateSubmit() {
+    const question = questions[questionIndex];
+    if (!question || !feedbackText.trim()) return;
+
+    setImproveMode({ phase: "loading" });
+    setFeedbackError(null);
+
+    try {
+      const newQuestion = await regenerateQuestion(
+        "a1",
+        question.lessonId || 1,
+        question.exerciseType || "nouns",
+        question.question,
+        feedbackText
+      );
+
+      setImproveMode({
+        phase: "preview",
+        previewQuestion: newQuestion,
+        iterationBase: newQuestion,
+      });
+    } catch (err) {
+      setFeedbackError(
+        err instanceof Error ? err.message : "Failed to regenerate question"
+      );
+      setImproveMode({ phase: "input" });
+    }
+  }
+
+  async function handleAccept() {
+    const question = questions[questionIndex];
+    const improveState = improveMode;
+
+    if (
+      improveState.phase !== "preview" ||
+      !question ||
+      !improveState.previewQuestion
+    ) {
+      return;
+    }
+
+    try {
+      await replaceQuestion(
+        "a1",
+        question.lessonId || 1,
+        question.exerciseType || "nouns",
+        question.question,
+        improveState.previewQuestion
+      );
+
+      // Update local state
+      const newShuffled = shuffledQuestions.map((q) =>
+        q.question === question.question ? improveState.previewQuestion : q
+      );
+      setShuffledQuestions(newShuffled);
+      setImproveMode({ phase: "idle" });
+      setFeedbackText("");
+      setAnswered(false);
+    } catch (err) {
+      setFeedbackError(
+        err instanceof Error ? err.message : "Failed to accept replacement"
+      );
+    }
+  }
+
+  function handleTryAgain() {
+    const improveState = improveMode;
+    if (improveState.phase !== "preview") return;
+
+    setImproveMode({ phase: "loading" });
+    setFeedbackError(null);
+
+    regenerateQuestion(
+      "a1",
+      questions[questionIndex]?.lessonId || 1,
+      questions[questionIndex]?.exerciseType || "nouns",
+      questions[questionIndex]?.question || "",
+      feedbackText
+    )
+      .then((newQuestion) => {
+        setImproveMode({
+          phase: "preview",
+          previewQuestion: newQuestion,
+          iterationBase: newQuestion,
+        });
+      })
+      .catch((err) => {
+        setFeedbackError(
+          err instanceof Error ? err.message : "Failed to regenerate question"
+        );
+        setImproveMode({ phase: "input" });
+      });
+  }
+
+  function handleDiscardImprove() {
+    setImproveMode({ phase: "idle" });
+    setFeedbackText("");
+    setFeedbackError(null);
   }
 
   // Filter questions by topic if selected
@@ -328,8 +512,104 @@ export function Exercise() {
                 index={questionIndex}
                 total={total}
                 onAnswer={handleAnswer}
+                onDelete={handleDelete}
+                onImprove={handleImproveOpen}
               />
-              {answered && (
+
+              {/* Improve mode UI */}
+              {improveMode.phase === "input" && (
+                <div className="flex flex-col gap-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <label className="text-sm font-semibold text-slate-700">
+                    How should this question be improved?
+                  </label>
+                  <textarea
+                    value={feedbackText}
+                    onChange={(e) => setFeedbackText(e.target.value)}
+                    placeholder="e.g., Make it harder, Use a different topic, Change the question format..."
+                    className="p-3 border border-slate-300 rounded text-sm outline-none focus:border-blue-400"
+                    rows={3}
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleRegenerateSubmit}
+                      disabled={!feedbackText.trim()}
+                      className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Generate
+                    </button>
+                    <button
+                      onClick={handleDiscardImprove}
+                      className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded text-sm font-medium transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {improveMode.phase === "loading" && (
+                <div className="flex items-center gap-2 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                  <span className="text-sm text-slate-600">Generating…</span>
+                </div>
+              )}
+
+              {improveMode.phase === "preview" && (
+                <div className="flex flex-col gap-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                  <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">
+                    Preview
+                  </p>
+                  <div className="flex flex-col gap-3">
+                    <p className="text-sm font-medium text-slate-800">
+                      {improveMode.previewQuestion.question}
+                    </p>
+
+                    {improveMode.previewQuestion.type === "multiple_choice" &&
+                      improveMode.previewQuestion.options && (
+                        <div className="grid grid-cols-2 gap-2">
+                          {improveMode.previewQuestion.options.map((opt) => (
+                            <div
+                              key={opt}
+                              className="px-3 py-2 rounded border border-slate-200 text-sm text-slate-700 bg-white"
+                            >
+                              {opt}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                    <p className="text-xs text-slate-600">
+                      <strong>Answer:</strong> {improveMode.previewQuestion.answer}
+                    </p>
+                  </div>
+
+                  {feedbackError && (
+                    <p className="text-sm text-red-600">{feedbackError}</p>
+                  )}
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleAccept}
+                      className="px-4 py-2 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700 transition-colors"
+                    >
+                      Accept
+                    </button>
+                    <button
+                      onClick={handleTryAgain}
+                      className="px-4 py-2 bg-slate-600 text-white rounded text-sm font-medium hover:bg-slate-700 transition-colors"
+                    >
+                      Try Again
+                    </button>
+                    <button
+                      onClick={handleDiscardImprove}
+                      className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded text-sm font-medium transition-colors"
+                    >
+                      Discard
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {answered && improveMode.phase === "idle" && (
                 <button
                   onClick={handleNext}
                   className="self-end px-5 py-2 bg-slate-700 text-white rounded-lg text-sm font-medium hover:bg-slate-800 transition-colors"

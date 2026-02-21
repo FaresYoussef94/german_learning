@@ -177,12 +177,35 @@ export class GermanLearningStack extends cdk.Stack {
     exercisesTable.grantReadData(lessonApiFn);
     processedBucket.grantRead(lessonApiFn);
 
+    // ── Lambda: feedback API ───────────────────────────────────────────────
+    const feedbackApiFn = new lambda.Function(this, "FeedbackApiFunction", {
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: "handler.main",
+      code: lambda.Code.fromAsset(
+        path.join(__dirname, "../../ingestion/lambda_feedback_api"),
+      ),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      environment: {
+        TABLE_NAME: exercisesTable.tableName,
+        MODEL_ID: "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+      },
+    });
+
+    exercisesTable.grantReadWriteData(feedbackApiFn);
+    feedbackApiFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["bedrock:InvokeModel"],
+        resources: ["*"],
+      }),
+    );
+
     // ── API Gateway ────────────────────────────────────────────────────────
     const api = new apigateway.RestApi(this, "ExercisesApi", {
       restApiName: "german-learning-api",
       defaultCorsPreflightOptions: {
         allowOrigins: apigateway.Cors.ALL_ORIGINS,
-        allowMethods: ["GET", "OPTIONS"],
+        allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
       },
     });
 
@@ -229,6 +252,32 @@ export class GermanLearningStack extends cdk.Stack {
       new apigateway.LambdaIntegration(lessonApiFn),
     );
 
+    // Feedback routes
+    const feedback = api.root.addResource("feedback");
+    const feedbackByLevel = feedback.addResource("{level}");
+    const feedbackByLesson = feedbackByLevel.addResource("{lessonId}");
+    const feedbackByType = feedbackByLesson.addResource("{type}");
+
+    // DELETE /feedback/{level}/{lessonId}/{type}
+    feedbackByType.addMethod(
+      "DELETE",
+      new apigateway.LambdaIntegration(feedbackApiFn),
+    );
+
+    // POST /feedback/{level}/{lessonId}/{type}/regenerate
+    const feedbackRegenerate = feedbackByType.addResource("regenerate");
+    feedbackRegenerate.addMethod(
+      "POST",
+      new apigateway.LambdaIntegration(feedbackApiFn),
+    );
+
+    // POST /feedback/{level}/{lessonId}/{type}/replace
+    const feedbackReplace = feedbackByType.addResource("replace");
+    feedbackReplace.addMethod(
+      "POST",
+      new apigateway.LambdaIntegration(feedbackApiFn),
+    );
+
     // ── Outputs ────────────────────────────────────────────────────────────
     new cdk.CfnOutput(this, "RawBucketName", { value: rawBucket.bucketName });
     new cdk.CfnOutput(this, "ProcessedBucketName", {
@@ -244,6 +293,10 @@ export class GermanLearningStack extends cdk.Stack {
     new cdk.CfnOutput(this, "LessonsApiUrl", {
       value: `${api.url}lessons`,
       description: "Set this as VITE_LESSONS_API_URL in Amplify Console",
+    });
+    new cdk.CfnOutput(this, "FeedbackApiUrl", {
+      value: `${api.url}feedback`,
+      description: "Set this as VITE_FEEDBACK_API_URL in Amplify Console",
     });
   }
 }

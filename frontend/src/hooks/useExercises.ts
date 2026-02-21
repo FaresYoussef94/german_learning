@@ -5,7 +5,9 @@ export interface Question {
   question: string;
   options?: string[];
   answer: string;
+  topic: string;
   lessonId?: number;
+  exerciseType?: "nouns" | "verbs";
 }
 
 export interface ExerciseSet {

@@ -83,13 +83,13 @@ def main(event, context):
             # Get only the specified type
             questions = exercises.get(exercise_type, [])
             for q in questions:
-                all_questions.append({**q, 'lessonId': lesson_id})
+                all_questions.append({**q, 'lessonId': lesson_id, 'exerciseType': exercise_type})
         else:
             # Get all types (nouns and verbs only)
             for qtype in ('nouns', 'verbs'):
                 questions = exercises.get(qtype, [])
                 for q in questions:
-                    all_questions.append({**q, 'lessonId': lesson_id})
+                    all_questions.append({**q, 'lessonId': lesson_id, 'exerciseType': qtype})
 
     return respond(200, {
         'level': level,
