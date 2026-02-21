@@ -50,9 +50,14 @@ function QuestionCard({
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-xs text-slate-400 uppercase tracking-wide font-medium">
-        Question {index + 1} / {total}
-      </p>
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-slate-400 uppercase tracking-wide font-medium">
+          Question {index + 1} / {total}
+        </p>
+        <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded">
+          {question.topic}
+        </span>
+      </div>
 
       <p className="text-lg font-medium text-slate-800">{question.question}</p>
 
@@ -125,6 +130,7 @@ function QuestionCard({
 export function Exercise() {
   const [searchParams, setSearchParams] = useSearchParams();
   const filterType = (searchParams.get("type") ?? "all") as FilterType;
+  const filterTopic = searchParams.get("topic") ?? "all";
 
   const [questionIndex, setQuestionIndex] = useState(0);
   const [score, setScore] = useState(0);
@@ -134,6 +140,11 @@ export function Exercise() {
 
   const { data, loading, error } = useExercises("a1", filterType);
 
+  // Get available topics from current questions
+  const availableTopics = data?.questions
+    ? Array.from(new Set(data.questions.map((q) => q.topic)))
+    : [];
+
   function resetExercise(newQuestions?: Question[]) {
     setQuestionIndex(0);
     setScore(0);
@@ -141,11 +152,18 @@ export function Exercise() {
     setFinished(false);
     if (newQuestions) {
       setShuffledQuestions(newQuestions);
+    } else {
+      setShuffledQuestions([]);
     }
   }
 
   function handleFilterChange(type: FilterType) {
-    setSearchParams({ type });
+    setSearchParams({ type, topic: "all" });
+    resetExercise();
+  }
+
+  function handleTopicChange(topic: string) {
+    setSearchParams({ type: filterType, topic });
     resetExercise();
   }
 
@@ -178,46 +196,87 @@ export function Exercise() {
     resetExercise(newShuffled);
   }
 
+  // Filter questions by topic if selected
+  const allQuestions = data?.questions ?? [];
+  const topicFilteredQuestions =
+    filterTopic === "all"
+      ? allQuestions
+      : allQuestions.filter((q) => q.topic === filterTopic);
+
   // Initialize shuffled questions on first load
-  const questions = shuffledQuestions.length > 0 ? shuffledQuestions : (data?.questions ?? []);
+  const questions =
+    shuffledQuestions.length > 0 ? shuffledQuestions : topicFilteredQuestions;
   const total = questions.length;
 
   // Auto-shuffle when data loads and we haven't shuffled yet
-  if (!shuffledQuestions.length && data?.questions && data.questions.length > 0) {
-    const newShuffled = shuffleArray(data.questions);
+  if (!shuffledQuestions.length && topicFilteredQuestions.length > 0) {
+    const newShuffled = shuffleArray(topicFilteredQuestions);
     setShuffledQuestions(newShuffled);
   }
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {/* Filter bar */}
-      <div className="bg-white border-b border-slate-200 px-6 py-3 flex items-center gap-2">
-        {(Object.keys(FILTER_LABELS) as FilterType[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => handleFilterChange(t)}
-            className={`px-4 py-1.5 rounded text-sm font-medium capitalize transition-colors ${
-              filterType === t
-                ? "bg-blue-50 text-blue-700 border border-blue-200"
-                : "text-slate-600 hover:bg-slate-100"
-            }`}
-          >
-            {FILTER_LABELS[t]}
-          </button>
-        ))}
-        {total > 0 && !finished && (
-          <>
+      <div className="bg-white border-b border-slate-200 px-6 py-3 flex flex-col gap-3">
+        {/* Type filters */}
+        <div className="flex items-center gap-2">
+          {(Object.keys(FILTER_LABELS) as FilterType[]).map((t) => (
             <button
-              onClick={handleShuffle}
-              className="ml-2 px-3 py-1.5 rounded text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
-              title="Shuffle questions"
+              key={t}
+              onClick={() => handleFilterChange(t)}
+              className={`px-4 py-1.5 rounded text-sm font-medium capitalize transition-colors ${
+                filterType === t
+                  ? "bg-blue-50 text-blue-700 border border-blue-200"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
             >
-              🔀 Shuffle
+              {FILTER_LABELS[t]}
             </button>
-            <span className="ml-auto text-sm text-slate-500">
-              Score: {score} / {questionIndex}
-            </span>
-          </>
+          ))}
+          {total > 0 && !finished && (
+            <>
+              <button
+                onClick={handleShuffle}
+                className="ml-2 px-3 py-1.5 rounded text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+                title="Shuffle questions"
+              >
+                🔀 Shuffle
+              </button>
+              <span className="ml-auto text-sm text-slate-500">
+                Score: {score} / {questionIndex}
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* Topic filters */}
+        {availableTopics.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-600">Topic:</span>
+            <button
+              onClick={() => handleTopicChange("all")}
+              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                filterTopic === "all"
+                  ? "bg-slate-200 text-slate-800"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              All
+            </button>
+            {availableTopics.map((topic) => (
+              <button
+                key={topic}
+                onClick={() => handleTopicChange(topic)}
+                className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                  filterTopic === topic
+                    ? "bg-slate-200 text-slate-800"
+                    : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                {topic}
+              </button>
+            ))}
+          </div>
         )}
       </div>
 

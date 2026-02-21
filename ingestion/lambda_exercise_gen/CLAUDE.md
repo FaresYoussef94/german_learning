@@ -62,7 +62,8 @@ Parses markdown tables with `|` separators:
 **System prompt:** Instructs Claude to generate:
 - 15 noun exercises: 5 multiple_choice (articles), 5 fill_blank (plurals), 5 translation
 - 15 verb exercises: 5 multiple_choice (infinitives), 5 fill_blank (perfect forms), 5 translation
-- Each exercise: `{type, question, [options], answer}`
+- Each exercise: `{type, topic, question, [options], answer}`
+- **Topics:** "article", "plural", "vocabulary" for nouns; "infinitive", "conjugation", "perfect_form", "vocabulary" for verbs
 
 ## DynamoDB item written
 
@@ -80,10 +81,10 @@ Parses markdown tables with `|` separators:
   ],
   "exercises": {
     "nouns": [
-      {"type": "multiple_choice", "question": "What is the article for Stuhl?", "options": ["der", "die", "das", "den"], "answer": "der"}
+      {"type": "multiple_choice", "topic": "article", "question": "What is the article for Stuhl?", "options": ["der", "die", "das", "den"], "answer": "der"}
     ],
     "verbs": [
-      {"type": "fill_blank", "question": "gehen (perfect form): ___", "answer": "ist gegangen"}
+      {"type": "fill_blank", "topic": "perfect_form", "question": "gehen (perfect form): ___", "answer": "ist gegangen"}
     ]
   },
   "generatedAt": "2026-02-21T10:00:00Z"

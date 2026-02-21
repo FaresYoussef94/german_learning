@@ -23,6 +23,7 @@ export interface Verb {
 
 export interface Question {
   type: "multiple_choice" | "fill_blank" | "translation" | "article";
+  topic: string;
   question: string;
   options?: string[];
   answer: string;

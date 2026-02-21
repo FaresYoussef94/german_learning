@@ -53,7 +53,7 @@ export class GermanLearningStack extends cdk.Stack {
         environment: {
           RAW_BUCKET: rawBucket.bucketName,
           PROCESSED_BUCKET: processedBucket.bucketName,
-          MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+          MODEL_ID: "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
         },
       },
     );
@@ -88,7 +88,7 @@ export class GermanLearningStack extends cdk.Stack {
       environment: {
         PROCESSED_BUCKET: processedBucket.bucketName,
         TABLE_NAME: exercisesTable.tableName,
-        MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        MODEL_ID: "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
       },
     });
 

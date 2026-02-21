@@ -103,24 +103,35 @@ Given vocabulary tables (nouns and verbs) from a lesson, generate practical exer
 Return ONLY valid JSON (no code fences):
 {
   "nouns": [
-    {"type": "multiple_choice", "question": "...", "options": ["...", "...", "...", "..."], "answer": "..."},
-    {"type": "fill_blank", "question": "...", "answer": "..."},
-    {"type": "translation", "question": "...", "answer": "..."}
+    {"type": "multiple_choice", "topic": "article", "question": "...", "options": ["...", "...", "...", "..."], "answer": "..."},
+    {"type": "fill_blank", "topic": "plural", "question": "...", "answer": "..."},
+    {"type": "translation", "topic": "vocabulary", "question": "...", "answer": "..."}
   ],
   "verbs": [
-    {"type": "multiple_choice", "question": "...", "options": ["...", "...", "...", "..."], "answer": "..."},
-    {"type": "fill_blank", "question": "...", "answer": "..."},
-    {"type": "translation", "question": "...", "answer": "..."}
+    {"type": "multiple_choice", "topic": "infinitive", "question": "...", "options": ["...", "...", "...", "..."], "answer": "..."},
+    {"type": "fill_blank", "topic": "perfect_form", "question": "...", "answer": "..."},
+    {"type": "translation", "topic": "vocabulary", "question": "...", "answer": "..."}
   ]
 }
 
+NOUN QUESTION TOPICS:
+- "article": Questions testing der/die/das article recognition
+- "plural": Questions testing plural forms of nouns
+- "vocabulary": Translation questions testing noun meaning
+
+VERB QUESTION TOPICS:
+- "infinitive": Questions testing infinitive forms or their meanings
+- "conjugation": Questions testing verb conjugations in different tenses/persons
+- "perfect_form": Questions testing present perfect (Perfekt) forms
+- "vocabulary": Translation questions testing verb meaning
+
 Guidelines:
-- Noun exercises: Test article recognition (der/die/das), plurals, and vocabulary meaning
-- Verb exercises: Test infinitives, conjugations, perfect forms, and verb meaning
+- Noun exercises: Create 5 multiple_choice (article), 5 fill_blank (plural), 5 translation (vocabulary)
+- Verb exercises: Create 5 multiple_choice (infinitive), 5 fill_blank (perfect_form), 5 translation (vocabulary)
 - Make questions practical and contextual
-- Include 5 of each question type (multiple_choice, fill_blank, translation) per category
 - Ensure answers are concise and unambiguous
-- Use realistic German phrases and sentences"""
+- Use realistic German phrases and sentences
+- IMPORTANT: Each question MUST have a "topic" field set appropriately"""
 
     # Truncate summary for context
 
@@ -132,11 +143,11 @@ Guidelines:
 ## Verbs Table
 {verbs_md}
 
-## Lesson Context 
+## Lesson Context
 {summary_md}
 
-Generate 15 noun exercises (5 multiple_choice, 5 fill_blank, 5 translation) and 15 verb exercises (5 multiple_choice, 5 fill_blank, 5 translation).
-Return only the JSON object."""
+Generate 15 noun exercises and 15 verb exercises with the specified topic fields.
+Return only the JSON object with all questions including their topic fields."""
 
     resp = bedrock.converse(
         modelId=MODEL_ID,

@@ -68,8 +68,8 @@ utils.py                    (in lambda_ocr_markdown/) Comprehensive LLM instruct
   "nouns": [{"word": "Stuhl", "article": "der", "plural": "Stühle", "english": "chair"}],
   "verbs": [{"infinitive": "gehen", "perfectForm": "ist gegangen", "case": "—", "english": "to go"}],
   "exercises": {
-    "nouns": [{"type": "multiple_choice", "question": "...", "options": [...], "answer": "..."}],
-    "verbs": [{"type": "fill_blank", "question": "...", "answer": "..."}]
+    "nouns": [{"type": "multiple_choice", "topic": "article", "question": "...", "options": [...], "answer": "..."}],
+    "verbs": [{"type": "fill_blank", "topic": "perfect_form", "question": "...", "answer": "..."}]
   },
   "generatedAt": "2026-02-21T10:00:00Z"
 }

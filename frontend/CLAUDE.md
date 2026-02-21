@@ -96,6 +96,7 @@ Fetches exercises: `GET /exercises/{level}?type=nouns|verbs` → `{questions: Qu
 ```typescript
 {
   type: "multiple_choice" | "fill_blank" | "translation" | "article";
+  topic: string;         // e.g., "article", "plural", "vocabulary", "infinitive", "conjugation", "perfect_form"
   question: string;
   options?: string[];    // present for multiple_choice
   answer: string;
