@@ -4,8 +4,6 @@ frontend:
     preBuild:
       commands:
         - cd frontend && npm ci
-        - python3 ingestion/split_lessons.py
-        - python3 ingestion/merge_tables.py
     build:
       commands:
         - cd frontend && npm run build

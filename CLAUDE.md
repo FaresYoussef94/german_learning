@@ -7,18 +7,14 @@ Full-stack German A1 study and exercise app. Monorepo with four areas:
 ```
 data/a1/           Source markdown files (lessons, nouns, verbs)
 frontend/          React + Vite + TypeScript web app
-ingestion/         Python pipeline: local scripts + Lambda handlers
+ingestion/         Python pipeline: Lambda handlers
 infrastructure/    AWS CDK stack (TypeScript)
-amplify.yml        Amplify build config (preBuild runs ingestion scripts)
+amplify.yml        Amplify build config
 ```
 
 ## Common commands
 
 ```bash
-# Generate static data files (run from repo root)
-python3 ingestion/split_lessons.py
-python3 ingestion/merge_tables.py
-
 # Local dev
 cd frontend && npm run dev
 
@@ -31,7 +27,7 @@ aws s3 sync data/a1/ s3://<RawBucketName>/a1/ --exclude "LLM_INSTRUCTION_SET.md"
 
 ## Data flow
 
-- **Study mode**: Amplify `preBuild` runs the Python scripts to split/merge markdown into static files served by the frontend.
+- **Study mode**: Static files from `data/a1/` are directly served by the frontend.
 - **Exercise mode**: `aws s3 sync` → S3 event → `IngestionFunction` Lambda → Bedrock (Claude Haiku) → DynamoDB → API Gateway → frontend `/exercise`.
 
 ## Key decisions
