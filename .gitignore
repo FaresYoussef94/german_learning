@@ -16,6 +16,13 @@ infrastructure/cdk.out/
 # Vite
 *.local
 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
 # Editor
 .vscode/
 .idea/
