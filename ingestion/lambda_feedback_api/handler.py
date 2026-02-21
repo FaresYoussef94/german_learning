@@ -42,7 +42,12 @@ def handle_delete(level: str, lesson_id: str, exercise_type: str, body: dict) ->
     """Delete a question by its text from DynamoDB."""
     question_text = body.get("question", "").strip()
     if not question_text:
+        logger.warning("Delete request missing question field")
         return respond(400, {"error": "question field is required"})
+
+    logger.info(
+        f"DELETE: lesson#{int(lesson_id):02d} ({exercise_type}): {question_text[:50]}..."
+    )
 
     table = dynamodb.Table(TABLE_NAME)
     key = {"level": level, "typeLesson": f"lesson#{int(lesson_id):02d}"}
@@ -50,6 +55,7 @@ def handle_delete(level: str, lesson_id: str, exercise_type: str, body: dict) ->
     # Get current item
     try:
         response = table.get_item(Key=key)
+        logger.debug(f"Retrieved lesson item: {len(response.get('Item', {}))} bytes")
     except Exception as e:
         logger.error(f"DynamoDB GetItem failed: {e}")
         return respond(500, {"error": "database_error"})
@@ -65,7 +71,10 @@ def handle_delete(level: str, lesson_id: str, exercise_type: str, body: dict) ->
     filtered = [q for q in questions if q.get("question", "").strip() != question_text]
 
     if len(filtered) == len(questions):
+        logger.warning(f"Question not found in lesson#{int(lesson_id):02d} ({exercise_type})")
         return respond(404, {"error": "question_not_found"})
+
+    logger.info(f"Found and filtering question ({len(questions)} → {len(filtered)} remaining)")
 
     # Update lesson item
     try:
@@ -75,6 +84,7 @@ def handle_delete(level: str, lesson_id: str, exercise_type: str, body: dict) ->
             ExpressionAttributeNames={"#t": exercise_type},
             ExpressionAttributeValues={":list": filtered},
         )
+        logger.info(f"Updated lesson item: {len(questions)} → {len(filtered)} exercises")
     except Exception as e:
         logger.error(f"DynamoDB UpdateItem failed: {e}")
         return respond(500, {"error": "database_error"})
@@ -84,6 +94,7 @@ def handle_delete(level: str, lesson_id: str, exercise_type: str, body: dict) ->
     try:
         agg_response = table.get_item(Key=agg_key)
         agg_exercises = agg_response.get("Item", {}).get("exercises", [])
+        logger.debug(f"Retrieved exercises#{exercise_type} aggregate: {len(agg_exercises)} items")
 
         # Filter out the deleted question from aggregate
         agg_filtered = [
@@ -98,10 +109,13 @@ def handle_delete(level: str, lesson_id: str, exercise_type: str, body: dict) ->
                     "exercises": agg_filtered,
                 }
             )
-            logger.info(f"Updated {exercise_type} exercise aggregate")
+            logger.info(f"Updated exercises#{exercise_type}: {len(agg_exercises)} → {len(agg_filtered)}")
+        else:
+            logger.debug("Question not in aggregate (may have already been deleted)")
     except Exception as e:
         logger.warning(f"Failed to update exercise aggregate (non-fatal): {e}")
 
+    logger.info("DELETE operation completed successfully")
     return respond(200, {"deleted": True})
 
 
@@ -113,7 +127,10 @@ def handle_regenerate(
     feedback_text = body.get("feedback", "").strip()
 
     if not question_text or not feedback_text:
+        logger.warning("Regenerate request missing question or feedback field")
         return respond(400, {"error": "question and feedback fields are required"})
+
+    logger.info(f"REGENERATE: lesson#{int(lesson_id):02d} ({exercise_type}), feedback: {feedback_text[:50]}...")
 
     table = dynamodb.Table(TABLE_NAME)
     key = {"level": level, "typeLesson": f"lesson#{int(lesson_id):02d}"}
@@ -139,7 +156,10 @@ def handle_regenerate(
             break
 
     if not original_question:
+        logger.warning(f"Question not found in lesson#{int(lesson_id):02d} ({exercise_type})")
         return respond(404, {"error": "question_not_found"})
+
+    logger.debug(f"Found original question, calling Bedrock...")
 
     # Call Bedrock to regenerate
     system_prompt = f"""You are a German A1 learning exercise generator. The user wants to improve a {exercise_type[:-1]} (noun/verb) exercise.
@@ -163,6 +183,7 @@ User feedback:
 Regenerate the exercise based on the feedback. Maintain the same structure but improve it."""
 
     try:
+        logger.debug("Calling Bedrock converse API...")
         response = bedrock.converse(
             modelId=MODEL_ID,
             messages=[
@@ -176,13 +197,15 @@ Regenerate the exercise based on the feedback. Maintain the same structure but i
             system=[{"text": system_prompt}],
         )
 
+        logger.debug("Bedrock response received, parsing...")
         message = response["output"]["message"]
         if not message:
             raise ValueError("No message in response")
         content = message["content"]
         if not content or "text" not in content[0]:
             raise ValueError("No text content in response")
-        new_question = json.loads(content)
+        new_question = json.loads(content[0]["text"])
+        logger.info(f"Successfully generated new {exercise_type[:-1]} exercise")
 
     except json.JSONDecodeError as e:
         logger.error(f"Bedrock response was not valid JSON: {e}")
@@ -191,6 +214,7 @@ Regenerate the exercise based on the feedback. Maintain the same structure but i
         logger.error(f"Bedrock converse failed: {e}")
         return respond(500, {"error": "bedrock_error"})
 
+    logger.info("REGENERATE operation completed successfully")
     return respond(200, {"question": new_question})
 
 
@@ -200,9 +224,12 @@ def handle_replace(level: str, lesson_id: str, exercise_type: str, body: dict) -
     new_question = body.get("newQuestion")
 
     if not old_question_text or not new_question:
+        logger.warning("Replace request missing oldQuestion or newQuestion field")
         return respond(
             400, {"error": "oldQuestion and newQuestion fields are required"}
         )
+
+    logger.info(f"REPLACE: lesson#{int(lesson_id):02d} ({exercise_type}): {old_question_text[:50]}...")
 
     table = dynamodb.Table(TABLE_NAME)
     key = {"level": level, "typeLesson": f"lesson#{int(lesson_id):02d}"}
@@ -270,10 +297,13 @@ def handle_replace(level: str, lesson_id: str, exercise_type: str, body: dict) -
                     "exercises": agg_updated,
                 }
             )
-            logger.info(f"Updated {exercise_type} exercise aggregate")
+            logger.info(f"Updated exercises#{exercise_type} aggregate with new question")
+        else:
+            logger.debug("Question not found in aggregate (may have already been updated)")
     except Exception as e:
         logger.warning(f"Failed to update exercise aggregate (non-fatal): {e}")
 
+    logger.info("REPLACE operation completed successfully")
     return respond(200, {"replaced": True})
 
 
