@@ -1,7 +1,7 @@
 """Exercise API Lambda — serves pre-generated exercises from DynamoDB.
 
-GET /exercises/{level}?type=nouns|verbs|lesson   — filtered by type
-GET /exercises/{level}                            — all questions for the level
+GET /exercises/{level}?type=nouns|verbs   — filtered by type
+GET /exercises/{level}                     — all questions for the level
 """
 
 import json
@@ -17,7 +17,7 @@ logger.setLevel(logging.INFO)
 dynamodb = boto3.resource('dynamodb')
 TABLE_NAME = os.environ['TABLE_NAME']
 
-VALID_TYPES = {'nouns', 'verbs', 'lesson'}
+VALID_TYPES = {'nouns', 'verbs'}
 
 CORS_HEADERS = {
     'Access-Control-Allow-Origin': '*',
@@ -50,19 +50,13 @@ def main(event, context):
 
     table = dynamodb.Table(TABLE_NAME)
 
-    if exercise_type:
-        # Filter to a specific type: SK begins_with "{type}#"
-        result = table.query(
-            KeyConditionExpression=(
-                Key('level').eq(level) &
-                Key('typeLesson').begins_with(f'{exercise_type}#')
-            )
+    # Query all lesson items (SK begins_with "lesson#")
+    result = table.query(
+        KeyConditionExpression=(
+            Key('level').eq(level) &
+            Key('typeLesson').begins_with('lesson#')
         )
-    else:
-        # All questions for the level
-        result = table.query(
-            KeyConditionExpression=Key('level').eq(level)
-        )
+    )
 
     items = result.get('Items', [])
 
@@ -72,17 +66,30 @@ def main(event, context):
             'message': (
                 f'No exercises found for level "{level}"'
                 + (f' / type "{exercise_type}"' if exercise_type else '')
-                + '. Upload the source files to S3 to trigger generation.'
+                + '. Upload PDF files to S3 to trigger generation.'
             ),
         })
 
-    # Flatten all questions, embedding lessonId (parsed from SK "type#NN") on each
+    # Flatten all questions, extracting from exercises.{type}
     all_questions = []
     for item in sorted(items, key=lambda x: x['typeLesson']):
+        # Extract lesson ID from SK "lesson#NN"
         _, lesson_str = item['typeLesson'].split('#', 1)
         lesson_id = int(lesson_str)
-        for q in item['questions']:
-            all_questions.append({**q, 'lessonId': lesson_id})
+
+        exercises = item.get('exercises', {})
+
+        if exercise_type:
+            # Get only the specified type
+            questions = exercises.get(exercise_type, [])
+            for q in questions:
+                all_questions.append({**q, 'lessonId': lesson_id})
+        else:
+            # Get all types (nouns and verbs only)
+            for qtype in ('nouns', 'verbs'):
+                questions = exercises.get(qtype, [])
+                for q in questions:
+                    all_questions.append({**q, 'lessonId': lesson_id})
 
     return respond(200, {
         'level': level,

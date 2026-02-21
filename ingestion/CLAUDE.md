@@ -1,46 +1,119 @@
 # ingestion
 
-Python data pipeline. Two local scripts for build-time processing and two Lambda handlers for AWS exercise generation and serving.
+Python AWS Lambda pipeline. Handles PDF ingestion via Step Functions workflow and API serving.
 
 ## Structure
 
 ```
-split_lessons.py          Splits German_Lesson_Summary.md into per-lesson files
-merge_tables.py           Merges noun/verb tables into deduplicated all.md files
-lambda_ingestion/         S3-triggered Lambda: parse sources → Bedrock → DynamoDB
-lambda_exercise_api/      API Gateway Lambda: query DynamoDB, return exercises JSON
+lambda_workflow_trigger/    S3-triggered Lambda: starts Step Functions execution
+lambda_ocr_markdown/        Step 1: PDF → OCR → 3 markdown files (summary, nouns, verbs)
+lambda_exercise_gen/        Step 2: markdown files → parse → generate exercises → DynamoDB
+lambda_lesson_api/          API Gateway Lambda: serve lesson content + summary from S3
+lambda_exercise_api/        API Gateway Lambda: serve exercises
+utils.py                    (in lambda_ocr_markdown/) Comprehensive LLM instruction set
 ```
 
-## Local scripts (run from repo root)
+## Ingestion Workflow (Step Functions)
 
-```bash
-python3 ingestion/split_lessons.py
-# Writes: frontend/public/data/a1/lessons/lesson_01.md … lesson_14.md
-#         frontend/public/data/a1/index.json
+**Trigger:** S3 `ObjectCreated` on `.pdf` in raw bucket → `WorkflowTriggerFunction` → Step Functions
 
-python3 ingestion/merge_tables.py
-# Writes: frontend/public/data/a1/nouns/all.md  (deduplicated)
-#         frontend/public/data/a1/verbs/all.md   (deduplicated)
+### Step 1: OcrAndMarkdownsFunction
+
+**Input:** `{bucket, key}` from Step Functions
+
+**Flow:**
+1. Extract lesson number from S3 key (e.g., `lesson_03` → `3`)
+2. Start async Textract job
+3. Poll every 5s until complete (timeout: 10 min)
+4. Extract text from Textract response
+5. **Three separate Bedrock calls:**
+   - Call 1 (summary): Generate lesson summary markdown + extract title
+   - Call 2 (nouns): Generate nouns markdown table
+   - Call 3 (verbs): Generate verbs markdown table
+6. Save 3 files to ProcessedBucket:
+   - `a1/03/summary.md`
+   - `a1/03/nouns.md`
+   - `a1/03/verbs.md`
+7. Return metadata for Step 2
+
+**Environment variables:** `RAW_BUCKET`, `PROCESSED_BUCKET`, `MODEL_ID`
+
+**Bedrock API:** Uses modern `converse()` API with structured system prompts
+
+**Bugs Fixed:**
+- Textract polling: checks `response['JobStatus']` directly (was checking `Pages[0].Status` which always returned `IN_PROGRESS`)
+
+### Step 2: ExerciseGenFunction
+
+**Input:** Step 1 output `{level, lessonId, title, summaryKey, nounsKey, verbsKey}`
+
+**Flow:**
+1. Read 3 markdown files from ProcessedBucket
+2. Parse markdown tables using regex → structured lists:
+   - Extract nouns: `{word, article, plural, english}`
+   - Extract verbs: `{infinitive, perfectForm, case, english}`
+   - **Deduplication:** Skip duplicate entries by first column (German word/infinitive)
+3. Bedrock call: Generate exercises (single call, returns JSON)
+4. Write full lesson item to DynamoDB
+
+**Environment variables:** `PROCESSED_BUCKET`, `TABLE_NAME`, `MODEL_ID`
+
+**DynamoDB item schema:**
+```json
+{
+  "level": "a1",
+  "typeLesson": "lesson#03",
+  "title": "Lesson 3: ...",
+  "summaryKey": "a1/03/summary.md",
+  "nouns": [{"word": "Stuhl", "article": "der", "plural": "Stühle", "english": "chair"}],
+  "verbs": [{"infinitive": "gehen", "perfectForm": "ist gegangen", "case": "—", "english": "to go"}],
+  "exercises": {
+    "nouns": [{"type": "multiple_choice", "question": "...", "options": [...], "answer": "..."}],
+    "verbs": [{"type": "fill_blank", "question": "...", "answer": "..."}]
+  },
+  "generatedAt": "2026-02-21T10:00:00Z"
+}
 ```
 
-Both scripts use `Path(__file__).parent.parent` to resolve the repo root — must be run from the repo root.
+## APIs
 
-## Lambda: ingestion (`lambda_ingestion/handler.py`)
+### Lambda: lesson API (`lambda_lesson_api/handler.py`)
 
-Trigger: S3 `ObjectCreated` on any `.md` in the raw bucket.
+**Endpoints:**
+- `GET /lessons/{level}` — return lesson index `[{id, title}]`
+- `GET /lessons/{level}/nouns` — return all nouns flattened (deduplicated by word)
+- `GET /lessons/{level}/verbs` — return all verbs flattened (deduplicated by infinitive)
+- `GET /lessons/{level}/{lessonId}` — return full lesson data (nouns, verbs, exercises; summary excluded)
+- `GET /lessons/{level}/{lessonId}/summary` — return lesson summary markdown from S3
 
-Generates 42 DynamoDB items: 14 lessons × 3 types (`nouns`, `verbs`, `lesson`). Each item has 15 questions. Failures per lesson are logged as warnings and skipped — they don't abort the whole run.
+**Environment variables:** `TABLE_NAME`, `PROCESSED_BUCKET`
 
-Environment variables required: `TABLE_NAME`, `RAW_BUCKET`, `MODEL_ID`.
+**Deduplication:** Across-lesson deduplication happens at query time (uses `seen` set)
 
-## Lambda: exercise API (`lambda_exercise_api/handler.py`)
+**Bugs Fixed:**
+- Added missing `import re`
+- Fixed DynamoDB query to use `Key()` builder (not raw string expressions)
 
-Serves `GET /exercises/{level}?type=nouns|verbs|lesson`.
+### Lambda: exercise API (`lambda_exercise_api/handler.py`)
 
-Returns flattened questions array with `lessonId` embedded from the DynamoDB SK. Returns `404 not_generated` if no items exist for the requested level/type.
+**Endpoints:**
+- `GET /exercises/{level}?type=nouns|verbs` — return exercises by type
+- `GET /exercises/{level}` — return all exercises (nouns + verbs)
 
-Environment variable required: `TABLE_NAME`.
+**Notes:** "lesson" exercise type removed (now only nouns + verbs)
+
+**Environment variable:** `TABLE_NAME`
 
 ## Dependencies
 
-Both Lambdas depend only on `boto3` (provided by the Lambda runtime). `requirements.txt` files are present but empty for future additions.
+All Lambdas depend on `boto3>=1.47.0` (for modern Bedrock converse API). `requirements.txt` files specify this version.
+
+## Bedrock Models
+
+- **Model ID**: `us.anthropic.claude-haiku-4-5-20251001-v1:0` (Haiku for cost efficiency)
+- **API**: Modern `converse()` (replaces deprecated `invoke_model()`)
+- **Token limits**:
+  - Summary: 2000 tokens
+  - Nouns: 4000 tokens
+  - Verbs: 4000 tokens
+  - Exercises: 6000 tokens
