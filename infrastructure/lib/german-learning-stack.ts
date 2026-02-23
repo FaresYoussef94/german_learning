@@ -21,6 +21,14 @@ export class GermanLearningStack extends cdk.Stack {
       versioned: true,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      cors: [
+        {
+          allowedMethods: [s3.HttpMethods.PUT],
+          allowedOrigins: ["*"],
+          allowedHeaders: ["*"],
+          maxAge: 3600,
+        },
+      ],
     });
 
     // ── S3: processed bucket (for markdown files and summaries) ────────────
@@ -203,6 +211,31 @@ export class GermanLearningStack extends cdk.Stack {
       }),
     );
 
+    // ── Lambda: presigned URL generator ────────────────────────────────────────
+    const presignedUrlFn = new lambda.Function(this, "PresignedUrlFunction", {
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: "handler.main",
+      code: lambda.Code.fromAsset(
+        path.join(__dirname, "../../ingestion/lambda_presigned_url"),
+      ),
+      timeout: cdk.Duration.seconds(10),
+      environment: {
+        RAW_BUCKET: rawBucket.bucketName,
+      },
+    });
+
+    // Grant permissions for generating presigned URLs
+    rawBucket.grantPut(presignedUrlFn);
+    presignedUrlFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: [
+          "s3:PutObject",
+          "s3:GetObject",
+        ],
+        resources: [rawBucket.arnForObjects("*")],
+      }),
+    );
+
     // ── Lambda: aggregate rebuild (hourly) ──────────────────────────────────
     const aggregateRebuildFn = new lambda.Function(
       this,
@@ -226,7 +259,7 @@ export class GermanLearningStack extends cdk.Stack {
 
     // ── EventBridge: hourly aggregate rebuild ───────────────────────────────
     const hourlyRule = new events.Rule(this, "HourlyAggregateRebuild", {
-      schedule: events.Schedule.rate(cdk.Duration.hours(1)),
+      schedule: events.Schedule.rate(cdk.Duration.days(1)),
       description: "Rebuild vocabulary and exercise aggregates hourly",
     });
 
@@ -310,6 +343,13 @@ export class GermanLearningStack extends cdk.Stack {
       new apigateway.LambdaIntegration(feedbackApiFn),
     );
 
+    // Presigned URL route
+    const lessonUploadUrl = api.root.addResource("lesson-upload-url");
+    lessonUploadUrl.addMethod(
+      "POST",
+      new apigateway.LambdaIntegration(presignedUrlFn),
+    );
+
     // ── Outputs ────────────────────────────────────────────────────────────
     new cdk.CfnOutput(this, "RawBucketName", { value: rawBucket.bucketName });
     new cdk.CfnOutput(this, "ProcessedBucketName", {
@@ -329,6 +369,10 @@ export class GermanLearningStack extends cdk.Stack {
     new cdk.CfnOutput(this, "FeedbackApiUrl", {
       value: `${api.url}feedback`,
       description: "Set this as VITE_FEEDBACK_API_URL in Amplify Console",
+    });
+    new cdk.CfnOutput(this, "LessonUploadUrlEndpoint", {
+      value: `${api.url}lesson-upload-url`,
+      description: "POST endpoint to generate presigned S3 upload URLs",
     });
   }
 }

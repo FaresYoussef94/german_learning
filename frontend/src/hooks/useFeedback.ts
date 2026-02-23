@@ -1,6 +1,7 @@
 import { type Question } from "./useExercises";
 
-const FEEDBACK_API = import.meta.env.VITE_FEEDBACK_API_URL ?? "";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+const FEEDBACK_API = `${API_BASE_URL}/feedback`;
 
 /**
  * Delete a question permanently from DynamoDB.

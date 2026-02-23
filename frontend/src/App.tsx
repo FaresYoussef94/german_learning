@@ -14,6 +14,7 @@ import { StudyLessons } from "./pages/StudyLessons";
 import { StudyNouns } from "./pages/StudyNouns";
 import { StudyVerbs } from "./pages/StudyVerbs";
 import { Exercise } from "./pages/Exercise";
+import { UploadLesson } from "./pages/UploadLesson";
 import { useLessonIndex } from "./hooks/useLesson";
 
 function StudyLayout({ lessons }: { lessons: LessonMeta[] }) {
@@ -52,6 +53,7 @@ function AppShell({ lessons }: { lessons: LessonMeta[] }) {
         <Route path="/" element={<Navigate to="/study/lessons/1" replace />} />
         <Route path="/study/*" element={<StudyLayout lessons={lessons} />} />
         <Route path="/exercise" element={<Exercise />} />
+        <Route path="/upload" element={<UploadLesson />} />
         <Route path="*" element={<Navigate to="/study/lessons/1" replace />} />
       </Routes>
     </div>

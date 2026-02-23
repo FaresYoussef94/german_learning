@@ -7,7 +7,8 @@ interface LessonState<T> {
   error: string | null;
 }
 
-const LESSONS_API = import.meta.env.VITE_LESSONS_API_URL ?? "";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+const LESSONS_API = `${API_BASE_URL}/lessons`;
 
 const lessonDetailCache = new Map<string, LessonDetail>();
 const lessonIndexCache = new Map<string, LessonMeta[]>();
@@ -40,7 +41,7 @@ export function useLesson(
       setState({
         data: null,
         loading: false,
-        error: "VITE_LESSONS_API_URL is not configured.",
+        error: "VITE_API_BASE_URL is not configured.",
       });
       return;
     }
@@ -97,7 +98,7 @@ export function useLessonIndex(level: string): LessonState<LessonMeta[]> {
       setState({
         data: null,
         loading: false,
-        error: "VITE_LESSONS_API_URL is not configured.",
+        error: "VITE_API_BASE_URL is not configured.",
       });
       return;
     }
@@ -150,7 +151,7 @@ export function useAllNouns(level: string): LessonState<Noun[]> {
       setState({
         data: null,
         loading: false,
-        error: "VITE_LESSONS_API_URL is not configured.",
+        error: "VITE_API_BASE_URL is not configured.",
       });
       return;
     }
@@ -203,7 +204,7 @@ export function useAllVerbs(level: string): LessonState<Verb[]> {
       setState({
         data: null,
         loading: false,
-        error: "VITE_LESSONS_API_URL is not configured.",
+        error: "VITE_API_BASE_URL is not configured.",
       });
       return;
     }
@@ -264,7 +265,7 @@ export function useLessonSummary(
       setState({
         data: null,
         loading: false,
-        error: "VITE_LESSONS_API_URL is not configured.",
+        error: "VITE_API_BASE_URL is not configured.",
       });
       return;
     }

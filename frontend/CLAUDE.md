@@ -39,10 +39,13 @@ public/
 | `/study/nouns` | `StudyNouns` | `useAllNouns()` → `/lessons/{level}/nouns` |
 | `/study/verbs` | `StudyVerbs` | `useAllVerbs()` → `/lessons/{level}/verbs` |
 | `/exercise` | `Exercise` | `useExercises()` → `/exercises/{level}?type=nouns\|verbs` |
+| `/upload` | `UploadLesson` | `getPresignedUrl()` → `POST /lesson-upload-url` |
 
-## Hooks (useLesson.ts)
+## Hooks
 
-### useLessonIndex(level: string)
+### useLesson.ts
+
+#### useLessonIndex(level: string)
 Fetches lesson index: `GET /lessons/{level}` → `{id, title}[]`
 
 ### useLessonSummary(level: string, lessonId: string)
@@ -59,6 +62,19 @@ Fetches all verbs across lessons: `GET /lessons/{level}/verbs` → `Verb[]`
 
 ### useExercises(level: string, type?: 'nouns' | 'verbs' | 'all')
 Fetches exercises: `GET /exercises/{level}?type=nouns|verbs` → `{questions: Question[]}`
+
+### useLessonUpload.ts
+
+#### getPresignedUrl(lessonId: string, level?: string)
+Generates a presigned S3 upload URL: `POST /lesson-upload-url` → `{uploadUrl, key, expiresIn}`
+
+**Usage:**
+```typescript
+const { uploadUrl, expiresIn } = await getPresignedUrl("3", "a1");
+// Returns URL valid for 1 hour, ready for direct S3 PUT from browser
+```
+
+**Throws:** Error if API not configured or request fails
 
 ## Types (types.ts)
 
@@ -105,13 +121,17 @@ Fetches exercises: `GET /exercises/{level}?type=nouns|verbs` → `{questions: Qu
 
 ## Environment variables
 
-- `VITE_EXERCISES_API_URL` — API Gateway exercises endpoint. Set in Amplify Console for production.
-- `VITE_LESSONS_API_URL` — API Gateway lessons endpoint. Set in Amplify Console for production.
+- `VITE_API_BASE_URL` — API Gateway base URL. Set in Amplify Console for production.
+
+All endpoints are constructed from this base:
+- `/lessons` — lesson API
+- `/exercises` — exercise API
+- `/feedback` — feedback API
+- `/lesson-upload-url` — presigned URL API
 
 For local testing create `frontend/.env.local`:
 ```
-VITE_EXERCISES_API_URL=https://<api-id>.execute-api.<region>.amazonaws.com/prod/exercises
-VITE_LESSONS_API_URL=https://<api-id>.execute-api.<region>.amazonaws.com/prod/lessons
+VITE_API_BASE_URL=https://<api-id>.execute-api.<region>.amazonaws.com/prod
 ```
 
 ## Key Changes from Previous Version

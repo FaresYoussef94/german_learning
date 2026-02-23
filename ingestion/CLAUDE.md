@@ -11,6 +11,7 @@ lambda_exercise_gen/           Step 2: markdown files → parse → generate exe
 lambda_lesson_api/             API Gateway Lambda: serve lessons from aggregates (fast)
 lambda_exercise_api/           API Gateway Lambda: serve exercises from aggregates (fast)
 lambda_feedback_api/           API Gateway Lambda: delete/improve exercises, update aggregates
+lambda_presigned_url/          API Gateway Lambda: generate presigned S3 upload URLs (mobile uploads)
 lambda_aggregate_rebuild/      EventBridge-triggered: rebuild aggregates hourly (safe for concurrent uploads)
 utils.py                       (in lambda_ocr_markdown/) Comprehensive LLM instruction set
 ```
@@ -125,6 +126,43 @@ All Lambdas depend on `boto3>=1.47.0` (for modern Bedrock converse API). `requir
 **Environment variables:** `TABLE_NAME`, `MODEL_ID`
 
 **Question identity:** Question text is the natural key (unique within lesson)
+
+### Lambda: presigned URL API (`lambda_presigned_url/handler.py`)
+
+**Endpoint:**
+- `POST /lesson-upload-url` — generate presigned S3 upload URL
+
+**Request body:**
+```json
+{
+  "lessonId": "3",
+  "level": "a1"  // optional, defaults to "a1"
+}
+```
+
+**Response:**
+```json
+{
+  "uploadUrl": "https://bucket.s3.amazonaws.com/a1/lesson_03.pdf?AWSAccessKeyId=...",
+  "key": "a1/lesson_03.pdf",
+  "expiresIn": 3600
+}
+```
+
+**Flow:**
+1. Validate lesson ID (must be numeric)
+2. Format lesson ID as 2-digit number (3 → 03)
+3. Generate presigned PUT URL (1-hour expiry)
+4. Return URL to client
+
+**Use case:** Mobile uploads via browser — user receives presigned URL, opens it on phone, selects PDF from Downloads, uploads directly without CLI/S3 app
+
+**Environment variables:** `RAW_BUCKET`
+
+**Notes:**
+- Presigned URLs are time-limited (1 hour)
+- Supports any lesson level (a1, a2, b1, etc.)
+- S3 upload automatically triggers workflow (same as CLI uploads)
 
 ## Aggregate Structure (DynamoDB)
 

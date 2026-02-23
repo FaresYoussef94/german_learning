@@ -23,7 +23,8 @@ interface ExerciseState {
   error: string | null;
 }
 
-const API_URL = import.meta.env.VITE_EXERCISES_API_URL ?? "";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+const API_URL = `${API_BASE_URL}/exercises`;
 
 const cache = new Map<string, ExerciseSet>();
 
@@ -41,11 +42,11 @@ export function useExercises(level: string, type: string): ExerciseState {
       return;
     }
 
-    if (!API_URL) {
+    if (!API_BASE_URL) {
       setState({
         data: null,
         loading: false,
-        error: "VITE_EXERCISES_API_URL is not configured.",
+        error: "VITE_API_BASE_URL is not configured.",
       });
       return;
     }

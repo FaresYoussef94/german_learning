@@ -21,15 +21,22 @@ cd frontend && npm run dev
 # Deploy AWS infrastructure
 cd infrastructure && npx cdk deploy
 
-# Upload PDF to trigger content generation
+# Upload PDF to trigger content generation (CLI method)
 aws s3 cp data/a1/lesson_03.pdf s3://<RawBucketName>/a1/
+
+# Generate presigned URL for mobile upload
+curl -X POST https://<API_ENDPOINT>/prod/lesson-upload-url \
+  -H "Content-Type: application/json" \
+  -d '{"lessonId": "3"}'
 ```
 
 ## Data flow
 
 All content (lessons, nouns, verbs, exercises) is API-driven:
 
-1. **PDF Upload**: `aws s3 cp lesson_XX.pdf s3://<RawBucket>/a1/`
+1. **PDF Upload** (two methods):
+   - CLI: `aws s3 cp lesson_XX.pdf s3://<RawBucket>/a1/`
+   - Mobile: `POST /lesson-upload-url` → presigned URL → browser upload
 2. **S3 Trigger**: ObjectCreated event → `WorkflowTriggerFunction` Lambda
 3. **Step Functions Workflow** (sequential):
    - **Step 1 (OcrAndMarkdownsFunction)**:
@@ -64,3 +71,4 @@ All content (lessons, nouns, verbs, exercises) is API-driven:
 - **All frontend pages fetch from API endpoints** (no static files)
 - **Performance optimization**: Cross-lesson queries use aggregates (10-50x faster than querying all lessons)
 - **User feedback curation**: Delete/improve exercises with AI regeneration via Bedrock
+- **Mobile PDF uploads**: Presigned URL endpoint allows browser-based uploads from phone without CLI/S3 app

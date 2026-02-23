@@ -34,6 +34,18 @@ export function TopNav() {
         >
           Exercise
         </NavLink>
+        <NavLink
+          to="/upload"
+          className={({ isActive }) =>
+            `px-4 py-1.5 rounded font-medium transition-colors ${
+              isActive
+                ? "bg-white text-blue-700"
+                : "text-blue-100 hover:bg-blue-600"
+            }`
+          }
+        >
+          Upload
+        </NavLink>
       </nav>
     </header>
   );

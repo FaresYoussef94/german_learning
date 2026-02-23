@@ -37,6 +37,7 @@ npx cdk destroy  # tear down (S3 + DynamoDB are RETAIN — delete manually)
 | `LessonApiFunction` | Python 3.12 | 30s | 256 MB | API Gateway (reads aggregates) |
 | `ExerciseApiFunction` | Python 3.12 | 30s | 256 MB | API Gateway (reads aggregates) |
 | `FeedbackApiFunction` | Python 3.12 | 30s | 256 MB | API Gateway (delete/improve exercises) |
+| `PresignedUrlFunction` | Python 3.12 | 10s | 256 MB | API Gateway (generate S3 upload URLs) |
 | `AggregateRebuildFunction` | Python 3.12 | 5 min | 256 MB | EventBridge (hourly) |
 
 ### Step Functions
@@ -73,6 +74,7 @@ ExerciseGenFunction (Step 2)
 | | | `/feedback/{level}/{lessonId}/{type}` | DELETE |
 | | | `/feedback/{level}/{lessonId}/{type}/regenerate` | POST |
 | | | `/feedback/{level}/{lessonId}/{type}/replace` | POST |
+| | | `/lesson-upload-url` | POST |
 
 CORS: Allow all origins, GET + POST + DELETE + OPTIONS methods
 
@@ -103,6 +105,9 @@ CORS: Allow all origins, GET + POST + DELETE + OPTIONS methods
 - `dynamodb:GetItem`, `dynamodb:UpdateItem`, `dynamodb:PutItem` on ExercisesTable
 - `bedrock:InvokeModel` (for regeneration)
 
+**PresignedUrlFunction:**
+- `s3:PutObject` on RawSourceBucket (generates presigned URLs for PUT operations)
+
 **AggregateRebuildFunction:**
 - `dynamodb:Query`, `dynamodb:GetItem`, `dynamodb:PutItem` on ExercisesTable
 
@@ -119,6 +124,7 @@ Lambda code is bundled from:
 - `../../ingestion/lambda_lesson_api`
 - `../../ingestion/lambda_exercise_api`
 - `../../ingestion/lambda_feedback_api`
+- `../../ingestion/lambda_presigned_url`
 - `../../ingestion/lambda_aggregate_rebuild`
 
 via `lambda.Code.fromAsset(...)`
@@ -127,19 +133,20 @@ via `lambda.Code.fromAsset(...)`
 
 | Output | Use |
 |---|---|
-| `RawBucketName` | Target for PDF uploads: `aws s3 cp data/a1/lesson_XX.pdf s3://<name>/a1/` |
+| `RawBucketName` | Target for CLI uploads: `aws s3 cp data/a1/lesson_XX.pdf s3://<name>/a1/` |
 | `ProcessedBucketName` | Where markdown files are stored (read-only for users) |
 | `ExercisesTableName` | Informational |
 | `ExercisesApiUrl` | Set as `VITE_EXERCISES_API_URL` in Amplify Console |
 | `LessonsApiUrl` | Set as `VITE_LESSONS_API_URL` in Amplify Console |
 | `FeedbackApiUrl` | Set as `VITE_FEEDBACK_API_URL` in Amplify Console |
+| `LessonUploadUrlEndpoint` | POST endpoint to generate presigned S3 upload URLs (mobile uploads) |
 
 ## Architecture Overview
 
 ```
-S3 Upload (lesson.pdf)
-    ↓
-Step Functions Workflow
+S3 Upload (lesson.pdf) ← Two methods:
+    ↓                   1. CLI: aws s3 cp (RawBucketName)
+Step Functions Workflow 2. Mobile: POST /lesson-upload-url → presigned URL
 ├─ Step 1: OCR + Generate markdown (Textract + Bedrock)
 └─ Step 2: Parse + Generate exercises (Bedrock) + Update aggregates
     ↓
