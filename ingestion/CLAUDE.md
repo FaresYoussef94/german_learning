@@ -25,6 +25,7 @@ utils.py                       (in lambda_ocr_markdown/) Comprehensive LLM instr
 **Input:** `{bucket, key}` from Step Functions
 
 **Flow:**
+
 1. Extract lesson number from S3 key (e.g., `lesson_03` → `3`)
 2. Start async Textract job
 3. Poll every 5s until complete (timeout: 10 min)
@@ -44,6 +45,7 @@ utils.py                       (in lambda_ocr_markdown/) Comprehensive LLM instr
 **Bedrock API:** Uses modern `converse()` API with structured system prompts
 
 **Bugs Fixed:**
+
 - Textract polling: checks `response['JobStatus']` directly (was checking `Pages[0].Status` which always returned `IN_PROGRESS`)
 
 ### Step 2: ExerciseGenFunction
@@ -51,6 +53,7 @@ utils.py                       (in lambda_ocr_markdown/) Comprehensive LLM instr
 **Input:** Step 1 output `{level, lessonId, title, summaryKey, nounsKey, verbsKey}`
 
 **Flow:**
+
 1. Read 3 markdown files from ProcessedBucket
 2. Parse markdown tables using regex → structured lists:
    - Extract nouns: `{word, article, plural, english}`
@@ -62,6 +65,7 @@ utils.py                       (in lambda_ocr_markdown/) Comprehensive LLM instr
 **Environment variables:** `PROCESSED_BUCKET`, `TABLE_NAME`, `MODEL_ID`
 
 **DynamoDB item schema:**
+
 ```json
 {
   "level": "a1",
@@ -83,6 +87,7 @@ utils.py                       (in lambda_ocr_markdown/) Comprehensive LLM instr
 ### Lambda: lesson API (`lambda_lesson_api/handler.py`)
 
 **Endpoints:**
+
 - `GET /lessons/{level}` — return lesson index `[{id, title}]`
 - `GET /lessons/{level}/nouns` — return all nouns flattened (deduplicated by word)
 - `GET /lessons/{level}/verbs` — return all verbs flattened (deduplicated by infinitive)
@@ -94,12 +99,14 @@ utils.py                       (in lambda_ocr_markdown/) Comprehensive LLM instr
 **Deduplication:** Across-lesson deduplication happens at query time (uses `seen` set)
 
 **Bugs Fixed:**
+
 - Added missing `import re`
 - Fixed DynamoDB query to use `Key()` builder (not raw string expressions)
 
 ### Lambda: exercise API (`lambda_exercise_api/handler.py`)
 
 **Endpoints:**
+
 - `GET /exercises/{level}?type=nouns|verbs` — return exercises by type
 - `GET /exercises/{level}` — return all exercises (nouns + verbs)
 
@@ -114,11 +121,13 @@ All Lambdas depend on `boto3>=1.47.0` (for modern Bedrock converse API). `requir
 ### Lambda: feedback API (`lambda_feedback_api/handler.py`)
 
 **Endpoints:**
+
 - `DELETE /feedback/{level}/{lessonId}/{type}` — delete a question
 - `POST /feedback/{level}/{lessonId}/{type}/regenerate` — AI-regenerate with feedback
 - `POST /feedback/{level}/{lessonId}/{type}/replace` — accept regenerated question
 
 **Flow:**
+
 - Delete: Remove from lesson item + exercise aggregate
 - Regenerate: Call Bedrock with user feedback → return new question (no DB write)
 - Replace: Swap old for new in lesson item + exercise aggregate
@@ -130,39 +139,78 @@ All Lambdas depend on `boto3>=1.47.0` (for modern Bedrock converse API). `requir
 ### Lambda: presigned URL API (`lambda_presigned_url/handler.py`)
 
 **Endpoint:**
+
 - `POST /lesson-upload-url` — generate presigned S3 upload URL
 
+**Authentication:** Two-tier
+
+1. API Key (header): `x-api-key: <key>` (validates against `API_KEY` env var)
+2. Password (body): `{"password": "..."}` (validates against `UPLOAD_PASSWORD` env var)
+
+**Request headers:**
+
+```
+x-api-key: <API_KEY>
+Content-Type: application/json
+```
+
 **Request body:**
+
 ```json
 {
   "lessonId": "3",
-  "level": "a1"  // optional, defaults to "a1"
+  "level": "a1", // optional, defaults to "a1"
+  "password": "your-password" // entered by user in the upload form
 }
 ```
 
-**Response:**
+**Frontend flow:**
+
+1. User visits `/upload` page
+2. Enters: Lesson ID, Course Level, and Upload Password
+3. Clicks "Get Upload Link"
+4. Frontend sends POST request with password
+5. Lambda validates: API Key (header) + Password (body)
+6. If valid: returns presigned S3 URL (10-minute expiry)
+7. User selects PDF files and uploads directly to S3
+
+**Response (200 OK):**
+
 ```json
 {
   "uploadUrl": "https://bucket.s3.amazonaws.com/a1/lesson_03.pdf?AWSAccessKeyId=...",
   "key": "a1/lesson_03.pdf",
-  "expiresIn": 3600
+  "expiresIn": 600
+}
+```
+
+**Error (401 Unauthorized):**
+
+```json
+{
+  "error": "Invalid password"
 }
 ```
 
 **Flow:**
-1. Validate lesson ID (must be numeric)
-2. Format lesson ID as 2-digit number (3 → 03)
-3. Generate presigned PUT URL (1-hour expiry)
-4. Return URL to client
+
+1. Validate password (if `UPLOAD_PASSWORD` env var is set)
+2. Validate lesson ID (must be numeric)
+3. Format lesson ID as 2-digit number (3 → 03)
+4. Generate presigned PUT URL (10-minute expiry)
+5. Return URL to client
 
 **Use case:** Mobile uploads via browser — user receives presigned URL, opens it on phone, selects PDF from Downloads, uploads directly without CLI/S3 app
 
-**Environment variables:** `RAW_BUCKET`
+**Environment variables:** `RAW_BUCKET`, `UPLOAD_PASSWORD` (set in CDK)
 
 **Notes:**
-- Presigned URLs are time-limited (1 hour)
+
+- Presigned URLs are time-limited (10 minutes)
 - Supports any lesson level (a1, a2, b1, etc.)
 - S3 upload automatically triggers workflow (same as CLI uploads)
+- Password authentication protects against unauthorized uploads
+- Set `UPLOAD_PASSWORD` as environment variable during CDK deployment
 
 ## Aggregate Structure (DynamoDB)
 
@@ -185,6 +233,7 @@ Tier 3: S3 (large text data)
 ```
 
 **Why three tiers?**
+
 - Aggregates enable fast cross-lesson queries (1 GetItem vs Query + iterate)
 - Lesson items keep complete data for single-lesson views
 - S3 keeps large summaries separate (under 400KB DynamoDB limit)
@@ -194,6 +243,7 @@ Tier 3: S3 (large text data)
 **Trigger:** EventBridge rule (every 1 hour)
 
 **Flow:**
+
 1. Query all lesson items (PK=level, SK begins_with "lesson#")
 2. Flatten nouns → deduplicate by word
 3. Flatten verbs → deduplicate by infinitive
@@ -204,6 +254,7 @@ Tier 3: S3 (large text data)
 **Environment variables:** `TABLE_NAME`
 
 **Why hourly rebuild?**
+
 - Handles concurrent PDF uploads safely (no race conditions)
 - Fixes any lost updates from simultaneous ingestion
 - Removes duplicates automatically
@@ -213,12 +264,12 @@ Tier 3: S3 (large text data)
 
 ## APIs Performance
 
-| Endpoint | Before | After | Speed |
-|----------|--------|-------|-------|
-| `GET /lessons/{level}/nouns` | Query all lessons | 1 GetItem (aggregate) | **10-50x** ⚡ |
-| `GET /lessons/{level}/verbs` | Query all lessons | 1 GetItem (aggregate) | **10-50x** ⚡ |
-| `GET /exercises/{level}?type=nouns` | Query all lessons | 1 GetItem (aggregate) | **10-50x** ⚡ |
-| `GET /exercises/{level}` | Query all lessons | 2 GetItems (aggregates) | **5-25x** ⚡ |
+| Endpoint                            | Before            | After                   | Speed         |
+| ----------------------------------- | ----------------- | ----------------------- | ------------- |
+| `GET /lessons/{level}/nouns`        | Query all lessons | 1 GetItem (aggregate)   | **10-50x** ⚡ |
+| `GET /lessons/{level}/verbs`        | Query all lessons | 1 GetItem (aggregate)   | **10-50x** ⚡ |
+| `GET /exercises/{level}?type=nouns` | Query all lessons | 1 GetItem (aggregate)   | **10-50x** ⚡ |
+| `GET /exercises/{level}`            | Query all lessons | 2 GetItems (aggregates) | **5-25x** ⚡  |
 
 ## Bedrock Models
 

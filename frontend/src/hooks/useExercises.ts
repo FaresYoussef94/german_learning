@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { API_BASE_URL, getApiHeaders } from "../utils/api";
 
 export interface Question {
   type: "multiple_choice" | "fill_blank" | "translation" | "article";
@@ -23,7 +24,6 @@ interface ExerciseState {
   error: string | null;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 const API_URL = `${API_BASE_URL}/exercises`;
 
 const cache = new Map<string, ExerciseSet>();
@@ -59,7 +59,7 @@ export function useExercises(level: string, type: string): ExerciseState {
         ? `${API_URL}/${level}`
         : `${API_URL}/${level}?type=${type}`;
 
-    fetch(url)
+    fetch(url, { headers: getApiHeaders() })
       .then((res) => {
         if (res.status === 404) throw new Error("not_generated");
         if (!res.ok) throw new Error(`HTTP ${res.status}`);

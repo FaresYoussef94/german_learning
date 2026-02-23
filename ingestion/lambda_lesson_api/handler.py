@@ -24,6 +24,7 @@ s3 = boto3.client('s3')
 
 TABLE_NAME = os.environ['TABLE_NAME']
 PROCESSED_BUCKET = os.environ['PROCESSED_BUCKET']
+API_KEY = os.environ.get('API_KEY', '')
 
 LEVEL = 'a1'
 
@@ -85,18 +86,21 @@ def all_nouns(level: str) -> dict:
     """GET /lessons/{level}/nouns — read pre-computed aggregate (fast)."""
     table = dynamodb.Table(TABLE_NAME)
     try:
+        logger.info(f"Fetching nouns aggregate for level: {level}")
         response = table.get_item(
             Key={'level': level, 'typeLesson': 'nouns'}
         )
         item = response.get('Item')
         if not item:
+            logger.warning(f"Nouns aggregate not found for level: {level} (lessons may not be generated yet)")
             return {
                 'statusCode': 404,
                 'headers': get_headers(),
-                'body': json.dumps({'error': 'not_generated'}),
+                'body': json.dumps({'error': 'not_generated', 'message': 'No lessons uploaded yet'}),
             }
 
         all_nouns_list = item.get('nouns', [])
+        logger.info(f"Returning {len(all_nouns_list)} nouns for level: {level}")
         return {
             'statusCode': 200,
             'headers': get_headers(),
@@ -107,7 +111,7 @@ def all_nouns(level: str) -> dict:
         return {
             'statusCode': 500,
             'headers': get_headers(),
-            'body': json.dumps({'error': 'internal_error'}),
+            'body': json.dumps({'error': 'internal_error', 'details': str(e)}),
         }
 
 
@@ -115,18 +119,21 @@ def all_verbs(level: str) -> dict:
     """GET /lessons/{level}/verbs — read pre-computed aggregate (fast)."""
     table = dynamodb.Table(TABLE_NAME)
     try:
+        logger.info(f"Fetching verbs aggregate for level: {level}")
         response = table.get_item(
             Key={'level': level, 'typeLesson': 'verbs'}
         )
         item = response.get('Item')
         if not item:
+            logger.warning(f"Verbs aggregate not found for level: {level} (lessons may not be generated yet)")
             return {
                 'statusCode': 404,
                 'headers': get_headers(),
-                'body': json.dumps({'error': 'not_generated'}),
+                'body': json.dumps({'error': 'not_generated', 'message': 'No lessons uploaded yet'}),
             }
 
         all_verbs_list = item.get('verbs', [])
+        logger.info(f"Returning {len(all_verbs_list)} verbs for level: {level}")
         return {
             'statusCode': 200,
             'headers': get_headers(),
@@ -234,6 +241,17 @@ def lesson_summary(level: str, lesson_id: str) -> dict:
 def main(event, context):
     """Lambda handler for API Gateway."""
     logger.info(f"Event: {json.dumps(event)}")
+
+    # Validate API Key
+    if API_KEY:
+        provided_api_key = event.get('headers', {}).get('x-api-key', '').strip()
+        if provided_api_key != API_KEY:
+            logger.warning("Invalid API key provided")
+            return {
+                'statusCode': 401,
+                'headers': get_headers(),
+                'body': json.dumps({'error': 'Invalid API key'}),
+            }
 
     # Extract path and method
     path = event.get('path', '')

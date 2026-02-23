@@ -32,43 +32,50 @@ public/
 
 ## Routes
 
-| Path | Component | Data Source |
-|---|---|---|
-| `/` | Redirect → `/study/lessons/1` | — |
-| `/study/lessons/:lessonId` | `StudyLessons` | `useLessonSummary()` → `/lessons/{level}/{lessonId}/summary` |
-| `/study/nouns` | `StudyNouns` | `useAllNouns()` → `/lessons/{level}/nouns` |
-| `/study/verbs` | `StudyVerbs` | `useAllVerbs()` → `/lessons/{level}/verbs` |
-| `/exercise` | `Exercise` | `useExercises()` → `/exercises/{level}?type=nouns\|verbs` |
-| `/upload` | `UploadLesson` | `getPresignedUrl()` → `POST /lesson-upload-url` |
+| Path                       | Component                     | Data Source                                                  |
+| -------------------------- | ----------------------------- | ------------------------------------------------------------ |
+| `/`                        | Redirect → `/study/lessons/1` | —                                                            |
+| `/study/lessons/:lessonId` | `StudyLessons`                | `useLessonSummary()` → `/lessons/{level}/{lessonId}/summary` |
+| `/study/nouns`             | `StudyNouns`                  | `useAllNouns()` → `/lessons/{level}/nouns`                   |
+| `/study/verbs`             | `StudyVerbs`                  | `useAllVerbs()` → `/lessons/{level}/verbs`                   |
+| `/exercise`                | `Exercise`                    | `useExercises()` → `/exercises/{level}?type=nouns\|verbs`    |
+| `/upload`                  | `UploadLesson`                | `getPresignedUrl()` → `POST /lesson-upload-url`              |
 
 ## Hooks
 
 ### useLesson.ts
 
 #### useLessonIndex(level: string)
+
 Fetches lesson index: `GET /lessons/{level}` → `{id, title}[]`
 
 ### useLessonSummary(level: string, lessonId: string)
+
 Fetches lesson summary markdown: `GET /lessons/{level}/{lessonId}/summary` → `string`
 (Note: summary is fetched separately from S3, not from DynamoDB lesson item)
 
 ### useAllNouns(level: string)
+
 Fetches all nouns across lessons: `GET /lessons/{level}/nouns` → `Noun[]`
 (Deduplicated by API endpoint)
 
 ### useAllVerbs(level: string)
+
 Fetches all verbs across lessons: `GET /lessons/{level}/verbs` → `Verb[]`
 (Deduplicated by API endpoint)
 
 ### useExercises(level: string, type?: 'nouns' | 'verbs' | 'all')
+
 Fetches exercises: `GET /exercises/{level}?type=nouns|verbs` → `{questions: Question[]}`
 
 ### useLessonUpload.ts
 
 #### getPresignedUrl(lessonId: string, level?: string)
+
 Generates a presigned S3 upload URL: `POST /lesson-upload-url` → `{uploadUrl, key, expiresIn}`
 
 **Usage:**
+
 ```typescript
 const { uploadUrl, expiresIn } = await getPresignedUrl("3", "a1");
 // Returns URL valid for 1 hour, ready for direct S3 PUT from browser
@@ -79,11 +86,16 @@ const { uploadUrl, expiresIn } = await getPresignedUrl("3", "a1");
 ## Types (types.ts)
 
 ### LessonMeta
+
 ```typescript
-{ id: number; title: string }
+{
+  id: number;
+  title: string;
+}
 ```
 
 ### LessonDetail
+
 ```typescript
 {
   id: number;
@@ -96,19 +108,28 @@ const { uploadUrl, expiresIn } = await getPresignedUrl("3", "a1");
   };
 }
 ```
+
 (Note: summary NOT included; fetched separately via useLessonSummary)
 
 ### Noun
+
 ```typescript
-{ word: string; article: string; plural: string; english: string }
+{
+  word: string;
+  article: string;
+  plural: string;
+  english: string;
+}
 ```
 
 ### Verb
+
 ```typescript
 { infinitive: string; perfectForm: string; case: string; english: string }
 ```
 
 ### Question
+
 ```typescript
 {
   type: "multiple_choice" | "fill_blank" | "translation" | "article";
@@ -121,18 +142,30 @@ const { uploadUrl, expiresIn } = await getPresignedUrl("3", "a1");
 
 ## Environment variables
 
-- `VITE_API_BASE_URL` — API Gateway base URL. Set in Amplify Console for production.
+| Variable            | Description                                   |
+| ------------------- | --------------------------------------------- |
+| `VITE_API_BASE_URL` | API Gateway base URL (required)               |
+| `VITE_API_KEY`      | API Key for all endpoints (required for auth) |
 
-All endpoints are constructed from this base:
-- `/lessons` — lesson API
-- `/exercises` — exercise API
-- `/feedback` — feedback API
-- `/lesson-upload-url` — presigned URL API
+All endpoints are constructed from `VITE_API_BASE_URL`:
 
-For local testing create `frontend/.env.local`:
+- `/lessons` — lesson API (requires API Key)
+- `/exercises` — exercise API (requires API Key)
+- `/feedback` — feedback API (requires API Key)
+- `/lesson-upload-url` — presigned URL API (requires API Key + password entered in form)
+
+**For local testing, create `frontend/.env.local`:**
+
 ```
 VITE_API_BASE_URL=https://<api-id>.execute-api.<region>.amazonaws.com/prod
+VITE_API_KEY=<SET_API_KEY>
 ```
+
+**For Amplify production, sk476cnj9edet in Console:**
+
+- App Settings → Environment variables
+- Add `VITE_API_BASE_URL`, `VITE_API_KEY`
+- Upload password is entered by users in the upload form
 
 ## Key Changes from Previous Version
 

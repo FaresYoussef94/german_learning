@@ -166,6 +166,7 @@ export class GermanLearningStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(30),
       environment: {
         TABLE_NAME: exercisesTable.tableName,
+        ...(process.env.API_KEY && { API_KEY: process.env.API_KEY }),
       },
     });
 
@@ -182,6 +183,7 @@ export class GermanLearningStack extends cdk.Stack {
       environment: {
         TABLE_NAME: exercisesTable.tableName,
         PROCESSED_BUCKET: processedBucket.bucketName,
+        ...(process.env.API_KEY && { API_KEY: process.env.API_KEY }),
       },
     });
 
@@ -200,6 +202,7 @@ export class GermanLearningStack extends cdk.Stack {
       environment: {
         TABLE_NAME: exercisesTable.tableName,
         MODEL_ID: "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        ...(process.env.API_KEY && { API_KEY: process.env.API_KEY }),
       },
     });
 
@@ -221,6 +224,8 @@ export class GermanLearningStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(10),
       environment: {
         RAW_BUCKET: rawBucket.bucketName,
+        ...(process.env.API_KEY && { API_KEY: process.env.API_KEY }),
+        ...(process.env.UPLOAD_PASSWORD && { UPLOAD_PASSWORD: process.env.UPLOAD_PASSWORD }),
       },
     });
 
@@ -273,6 +278,29 @@ export class GermanLearningStack extends cdk.Stack {
         allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
       },
     });
+
+    // ── API Key for authentication ──────────────────────────────────────────
+    const apiKey = api.addApiKey("ApiKey", {
+      description: "API Key for German Learning App",
+    });
+
+    // ── Usage Plan (to associate API key with the API) ─────────────────────
+    const usagePlan = api.addUsagePlan("UsagePlan", {
+      name: "german-learning-usage-plan",
+      description: "Usage plan for German Learning API",
+      throttle: {
+        rateLimit: 10000,
+        burstLimit: 20000,
+      },
+      apiStages: [
+        {
+          api,
+          stage: api.deploymentStage,
+        },
+      ],
+    });
+
+    usagePlan.addApiKey(apiKey);
 
     // Exercises routes
     const exercises = api.root.addResource("exercises");
@@ -372,7 +400,11 @@ export class GermanLearningStack extends cdk.Stack {
     });
     new cdk.CfnOutput(this, "LessonUploadUrlEndpoint", {
       value: `${api.url}lesson-upload-url`,
-      description: "POST endpoint to generate presigned S3 upload URLs",
+      description: "POST endpoint to generate presigned S3 upload URLs (password required)",
+    });
+    new cdk.CfnOutput(this, "DeploymentNotes", {
+      value: "IMPORTANT: Deploy with: API_KEY=<key> UPLOAD_PASSWORD=<password> npx cdk deploy",
+      description: "Set environment variables before deploying to enable authentication",
     });
   }
 }

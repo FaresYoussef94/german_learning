@@ -12,6 +12,8 @@ logger.setLevel(logging.INFO)
 s3 = boto3.client("s3")
 
 RAW_BUCKET = os.environ["RAW_BUCKET"]
+API_KEY = os.environ.get("API_KEY", "")  # Set in CDK environment
+UPLOAD_PASSWORD = os.environ.get("UPLOAD_PASSWORD", "")  # Set in CDK environment
 
 CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
@@ -40,11 +42,25 @@ def main(event, context):
     if http_method != "POST":
         return respond(405, {"error": "method_not_allowed"})
 
+    # Validate API Key
+    if API_KEY:
+        provided_api_key = event.get("headers", {}).get("x-api-key", "").strip()
+        if provided_api_key != API_KEY:
+            logger.warning("Invalid API key provided")
+            return respond(401, {"error": "Invalid API key"})
+
     # Parse request body
     try:
         body = json.loads(event.get("body", "{}")) if event.get("body") else {}
     except json.JSONDecodeError:
         return respond(400, {"error": "invalid_json"})
+
+    # Validate password
+    if UPLOAD_PASSWORD:
+        provided_password = body.get("password", "").strip()
+        if provided_password != UPLOAD_PASSWORD:
+            logger.warning("Invalid password provided")
+            return respond(401, {"error": "Invalid password"})
 
     lesson_id = body.get("lessonId", "").strip()
     level = body.get("level", "a1").strip().lower()

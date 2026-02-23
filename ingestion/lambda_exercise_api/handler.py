@@ -15,6 +15,7 @@ logger.setLevel(logging.INFO)
 
 dynamodb = boto3.resource("dynamodb")
 TABLE_NAME = os.environ["TABLE_NAME"]
+API_KEY = os.environ.get("API_KEY", "")
 
 VALID_TYPES = {"nouns", "verbs"}
 
@@ -35,6 +36,13 @@ def respond(status: int, body: dict) -> dict:
 
 def main(event, context):
     logger.info("Event: %s", json.dumps(event))
+
+    # Validate API Key
+    if API_KEY:
+        provided_api_key = event.get("headers", {}).get("x-api-key", "").strip()
+        if provided_api_key != API_KEY:
+            logger.warning("Invalid API key provided")
+            return respond(401, {"error": "Invalid API key"})
 
     path_params = event.get("pathParameters") or {}
     query_params = event.get("queryStringParameters") or {}

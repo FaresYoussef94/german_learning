@@ -2,6 +2,8 @@
 
 A full-stack app for studying and practising German A1 vocabulary and grammar. The frontend is a React web app that fetches all content via API. The backend uses AWS Step Functions to orchestrate PDF ingestion (OCR + AI content generation) and serves lessons, vocabularyary, and exercises via API Gateway.
 
+**🌐 Live App:** https://main.d3eb8cvwgtlm81.amplifyapp.com
+
 ## Repo structure
 
 ```
@@ -73,6 +75,7 @@ Frontend fetches via /lessons and /exercises endpoints
 ### Frontend
 
 All content is API-driven (no static files). The React app fetches:
+
 - Lessons list and summaries via LessonApiFunction
 - Exercises via ExerciseApiFunction
 - Uses module-level caches to avoid duplicate requests
@@ -108,37 +111,54 @@ npm run dev
 
 ## Deploying to AWS
 
+### 1. Deploy the CDK Stack
+
 ```bash
-# 1. Deploy the CDK stack (creates all AWS resources)
+# Set credentials for authentication
+export API_KEY="<API_KEY>"
+export UPLOAD_PASSWORD="<UPLOAD_PASSWORD>"
+
+# Deploy AWS resources
 cd infrastructure
 npm install
 npx cdk deploy
 
 # Note the outputs:
-#   RawBucketName        → where to upload PDFs
-#   ProcessedBucketName  → where markdown files are stored
-#   LessonsApiUrl        → set as VITE_LESSONS_API_URL in Amplify
-#   ExercisesApiUrl      → set as VITE_EXERCISES_API_URL in Amplify
+#   RawBucketName              → where to upload PDFs
+#   ProcessedBucketName        → where markdown files are stored
+#   ExercisesApiUrl            → API endpoint for exercises
+#   LessonsApiUrl              → API endpoint for lessons
+#   LessonUploadUrlEndpoint    → presigned URL endpoint (mobile uploads)
+```
 
-# 2. Upload a PDF to trigger the workflow
+### 2. Upload a PDF to Trigger the Workflow
+
+```bash
 aws s3 cp data/a1/lesson_01.pdf s3://<RawBucketName>/a1/
 # Workflow runs automatically (2-3 min depending on PDF size)
 
-# 3. Monitor progress
-# AWS Console → Step Functions → IngestionStateMachine
+# Monitor progress: AWS Console → Step Functions → IngestionStateMachine
 # Check CloudWatch logs for each Lambda
-
-# 4. Test the API
-curl https://<api-id>.execute-api.<region>.amazonaws.com/prod/lessons/a1
-# Returns lesson index: [{id: 1, title: "..."}]
-
-# 5. Deploy frontend to Amplify
-# Connect this repo to AWS Amplify Console
-# Set environment variables:
-#   VITE_LESSONS_API_URL = <LessonsApiUrl from CDK output>
-#   VITE_EXERCISES_API_URL = <ExercisesApiUrl from CDK output>
-# Push to main → Amplify builds and deploys automatically
 ```
+
+### 3. Test the API (with API Key)
+
+```bash
+curl -H "x-api-key: <API_KEY>" \
+  https://<api-id>.execute-api.<region>.amazonaws.com/prod/lessons/a1
+# Returns lesson index: [{id: 1, title: "..."}]
+```
+
+### 4. Deploy Frontend to Amplify
+
+Connect this repo to AWS Amplify Console and set environment variables:
+
+| Variable            | Value                                                      |
+| ------------------- | ---------------------------------------------------------- |
+| `VITE_API_BASE_URL` | `https://<api-id>.execute-api.<region>.amazonaws.com/prod` |
+| `VITE_API_KEY`      | `<API_KEY>`                                                |
+
+Push to `main` → Amplify builds and deploys automatically
 
 ## Adding new lessons
 
@@ -160,9 +180,21 @@ curl https://<api-id>.execute-api.<region>.amazonaws.com/prod/lessons/a1
 
 ## Troubleshooting
 
+### Frontend shows "HTTP 401" error
+
+**Cause:** API Key not set in Amplify environment variables
+
+**Fix:**
+
+1. Go to AWS Amplify Console → App Settings → Environment variables
+2. Add `VITE_API_KEY=<API_KEY>`
+3. Redeploy the app
+4. Check browser console (F12) for warnings
+
 ### Workflow fails at Step 1 (OCR)
 
 **Check CloudWatch logs** for `lambda_ocr_markdown`:
+
 - `Textract job failed` → PDF may be corrupted or unscannable
 - `timeout` → PDF is very large or Textract is slow
 
@@ -171,6 +203,7 @@ curl https://<api-id>.execute-api.<region>.amazonaws.com/prod/lessons/a1
 ### Workflow fails at Step 2 (Exercise Generation)
 
 **Check CloudWatch logs** for `lambda_exercise_gen`:
+
 - `Failed to read from S3` → ProcessedBucket permissions issue
 - `json.JSONDecodeError` → Bedrock response was not valid JSON
 
@@ -184,12 +217,30 @@ curl https://<api-id>.execute-api.<region>.amazonaws.com/prod/lessons/a1
 
 ### Frontend shows "not_generated"
 
-- `VITE_LESSONS_API_URL` or `VITE_EXERCISES_API_URL` not set in Amplify Console
+- `VITE_API_BASE_URL` not set in Amplify Console
+- `VITE_API_KEY` not set or incorrect
 - API endpoints not deployed or not accessible
+
+### How to upload lessons
+
+**Via Web UI:**
+
+1. Go to `/upload` page
+2. Enter: Lesson ID, Level, and Upload Password
+3. Select PDF files (single or multiple)
+4. Click "Merge & Upload"
+5. Pipeline starts automatically
+
+**Via CLI (requires AWS CLI):**
+
+```bash
+aws s3 cp data/a1/lesson_03.pdf s3://<RawBucketName>/a1/
+```
 
 ## Documentation
 
 See CLAUDE.md files for detailed architecture and implementation notes:
+
 - `CLAUDE.md` — High-level overview
 - `ingestion/CLAUDE.md` — Ingestion pipeline details
 - `ingestion/lambda_*/CLAUDE.md` — Individual Lambda documentation

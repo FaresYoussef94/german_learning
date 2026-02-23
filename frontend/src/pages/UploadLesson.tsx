@@ -8,6 +8,7 @@ import {
 export function UploadLesson() {
   const [lessonId, setLessonId] = useState("");
   const [level, setLevel] = useState("a1");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [presignedUrl, setPresignedUrl] = useState<PresignedUrlResponse | null>(
@@ -26,7 +27,7 @@ export function UploadLesson() {
     setLoading(true);
 
     try {
-      const result = await getPresignedUrl(lessonId, level);
+      const result = await getPresignedUrl(lessonId, password, level);
       setPresignedUrl(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate URL");
@@ -286,6 +287,7 @@ export function UploadLesson() {
   const handleReset = () => {
     setPresignedUrl(null);
     setLessonId("");
+    setPassword("");
     setError(null);
     setSelectedFiles([]);
     setUploading(false);
@@ -357,6 +359,28 @@ export function UploadLesson() {
               </select>
             </div>
 
+            <div>
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-slate-700 mb-2"
+              >
+                Upload Password *
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter password"
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={loading || uploadSuccess}
+                required
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                Required to authenticate the upload
+              </p>
+            </div>
+
             {/* Error Message */}
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -368,7 +392,7 @@ export function UploadLesson() {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading || !lessonId || uploadSuccess}
+              disabled={loading || !lessonId || !password || uploadSuccess}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
             >
               {loading ? "Generating..." : "Get Upload Link"}

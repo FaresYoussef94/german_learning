@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { LessonDetail, LessonMeta, Noun, Verb } from "../types";
+import { API_BASE_URL, getApiHeaders } from "../utils/api";
 
 interface LessonState<T> {
   data: T | null;
@@ -7,7 +8,6 @@ interface LessonState<T> {
   error: string | null;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 const LESSONS_API = `${API_BASE_URL}/lessons`;
 
 const lessonDetailCache = new Map<string, LessonDetail>();
@@ -51,7 +51,7 @@ export function useLesson(
 
     const url = `${LESSONS_API}/${level}/${lessonId}`;
 
-    fetch(url)
+    fetch(url, { headers: getApiHeaders() })
       .then((res) => {
         if (res.status === 404) throw new Error("not_found");
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -108,7 +108,7 @@ export function useLessonIndex(level: string): LessonState<LessonMeta[]> {
 
     const url = `${LESSONS_API}/${level}`;
 
-    fetch(url)
+    fetch(url, { headers: getApiHeaders() })
       .then((res) => {
         if (res.status === 404) throw new Error("not_generated");
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -161,7 +161,7 @@ export function useAllNouns(level: string): LessonState<Noun[]> {
 
     const url = `${LESSONS_API}/${level}/nouns`;
 
-    fetch(url)
+    fetch(url, { headers: getApiHeaders() })
       .then((res) => {
         if (res.status === 404) throw new Error("not_generated");
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -214,7 +214,7 @@ export function useAllVerbs(level: string): LessonState<Verb[]> {
 
     const url = `${LESSONS_API}/${level}/verbs`;
 
-    fetch(url)
+    fetch(url, { headers: getApiHeaders() })
       .then((res) => {
         if (res.status === 404) throw new Error("not_generated");
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -275,7 +275,7 @@ export function useLessonSummary(
 
     const url = `${LESSONS_API}/${level}/${lessonId}/summary`;
 
-    fetch(url)
+    fetch(url, { headers: getApiHeaders() })
       .then((res) => {
         if (res.status === 404) throw new Error("not_found");
         if (!res.ok) throw new Error(`HTTP ${res.status}`);

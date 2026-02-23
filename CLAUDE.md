@@ -72,3 +72,67 @@ All content (lessons, nouns, verbs, exercises) is API-driven:
 - **Performance optimization**: Cross-lesson queries use aggregates (10-50x faster than querying all lessons)
 - **User feedback curation**: Delete/improve exercises with AI regeneration via Bedrock
 - **Mobile PDF uploads**: Presigned URL endpoint allows browser-based uploads from phone without CLI/S3 app
+- **Two-tier authentication**:
+  - Tier 1: API Key on all endpoints (read + write) — sent via `x-api-key` header
+  - Tier 2: Password on uploads only — sent in request body
+  - This allows you to control who accesses the app while keeping uploads extra secure
+
+## Authentication
+
+### Tier 1: API Key (All endpoints)
+
+All endpoints require API Key authentication sent via `x-api-key` HTTP header:
+
+```bash
+curl -H "x-api-key: <API_KEY>" https://api.example.com/lessons/a1
+```
+
+- Required for: `/lessons`, `/exercises`, `/feedback`, `/lesson-upload-url`
+- Sent in HTTP header: `x-api-key: <your-api-key>`
+- Returns 401 Unauthorized if missing or invalid
+- Controls who can access the app at all
+
+### Tier 2: Password (Upload only)
+
+Upload page asks users for a password before requesting presigned URL:
+
+```
+Upload form:
+├── Lesson ID
+├── Course Level
+└── Upload Password (user enters at upload time)
+```
+
+- Required for: `POST /lesson-upload-url`
+- User enters password in the upload form
+- Sent in JSON body: `{"password": "<password>"}`
+- Returns 401 Unauthorized if incorrect
+- Extra protection: only users who know the password can upload lessons
+- Everyone else can only read/solve exercises
+
+### Deployment Setup
+
+**Before deploying, set these environment variables:**
+
+```bash
+export API_KEY="<API_KEY>"
+export UPLOAD_PASSWORD="<UPLOAD_PASSWORD>"  # Backend password validation
+
+# Then deploy:
+cd infrastructure
+npx cdk deploy
+```
+
+**Frontend configuration (.env.local):**
+
+```
+VITE_API_BASE_URL=https://<api-id>.execute-api.<region>.amazonaws.com/prod
+VITE_API_KEY=<API_KEY>
+# Note: VITE_UPLOAD_PASSWORD is NOT needed - users enter it in the upload form
+```
+
+**Amplify Console setup:**
+
+- Go to App Settings → Environment variables
+- Add: `VITE_API_KEY`, `VITE_API_BASE_URL`
+- Users will be prompted for password in the upload form
