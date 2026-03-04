@@ -1,6 +1,6 @@
 import { type Question } from "./useExercises";
+import { API_BASE_URL, getApiHeaders } from "../utils/api";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 const FEEDBACK_API = `${API_BASE_URL}/feedback`;
 
 /**
@@ -16,7 +16,7 @@ export async function deleteQuestion(
 
   const res = await fetch(url, {
     method: "DELETE",
-    headers: { "Content-Type": "application/json" },
+    headers: getApiHeaders(),
     body: JSON.stringify({ question }),
   });
 
@@ -41,7 +41,7 @@ export async function regenerateQuestion(
 
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getApiHeaders(),
     body: JSON.stringify({ question, feedback }),
   });
 
@@ -68,7 +68,7 @@ export async function replaceQuestion(
 
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getApiHeaders(),
     body: JSON.stringify({ oldQuestion, newQuestion }),
   });
 

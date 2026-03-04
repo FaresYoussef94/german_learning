@@ -20,6 +20,7 @@ bedrock = boto3.client("bedrock-runtime")
 
 TABLE_NAME = os.environ["TABLE_NAME"]
 MODEL_ID = os.environ["MODEL_ID"]
+API_KEY = os.environ.get("API_KEY", "")
 
 VALID_TYPES = {"nouns", "verbs"}
 
@@ -309,6 +310,13 @@ def handle_replace(level: str, lesson_id: str, exercise_type: str, body: dict) -
 
 def main(event, context):
     logger.info("Event: %s", json.dumps(event))
+
+    # Validate API Key
+    if API_KEY:
+        provided_api_key = event.get("headers", {}).get("x-api-key", "").strip()
+        if provided_api_key != API_KEY:
+            logger.warning("Invalid API key provided")
+            return respond(401, {"error": "Invalid API key"})
 
     http_method = event.get("httpMethod", "").upper()
     path = event.get("path", "").strip("/")
