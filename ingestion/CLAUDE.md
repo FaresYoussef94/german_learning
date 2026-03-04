@@ -59,8 +59,12 @@ utils.py                       (in lambda_ocr_markdown/) Comprehensive LLM instr
    - Extract nouns: `{word, article, plural, english}`
    - Extract verbs: `{infinitive, perfectForm, case, english}`
    - **Deduplication:** Skip duplicate entries by first column (German word/infinitive)
-3. Bedrock call: Generate exercises (single call, returns JSON)
-4. Write full lesson item to DynamoDB
+3. Wiktionary API enrichment:
+   - Verbs: fetch present-tense conjugations (ich/du/er,sie,es/wir/ihr/sie) from `{{Deutsch Verb Übersicht}}` template
+   - Nouns: verify/correct article (Genus field) and plural (Nominativ Plural field) from `{{Deutsch Substantiv Übersicht}}` template
+   - HTTP errors → fail the Lambda; word not found → skip gracefully
+4. Bedrock call: Generate exercises (single call, returns JSON)
+5. Write full lesson item to DynamoDB
 
 **Environment variables:** `PROCESSED_BUCKET`, `TABLE_NAME`, `MODEL_ID`
 
@@ -73,7 +77,7 @@ utils.py                       (in lambda_ocr_markdown/) Comprehensive LLM instr
   "title": "Lesson 3: ...",
   "summaryKey": "a1/03/summary.md",
   "nouns": [{"word": "Stuhl", "article": "der", "plural": "Stühle", "english": "chair"}],
-  "verbs": [{"infinitive": "gehen", "perfectForm": "ist gegangen", "case": "—", "english": "to go"}],
+  "verbs": [{"infinitive": "gehen", "perfectForm": "ist gegangen", "case": "—", "english": "to go", "ich": "gehe", "du": "gehst", "erSieEs": "geht", "wir": "gehen", "ihr": "geht", "sieSie": "gehen"}],
   "exercises": {
     "nouns": [{"type": "multiple_choice", "topic": "article", "question": "...", "options": [...], "answer": "..."}],
     "verbs": [{"type": "fill_blank", "topic": "perfect_form", "question": "...", "answer": "..."}]
@@ -116,7 +120,7 @@ utils.py                       (in lambda_ocr_markdown/) Comprehensive LLM instr
 
 ## Dependencies
 
-All Lambdas depend on `boto3>=1.47.0` (for modern Bedrock converse API). `requirements.txt` files specify this version.
+All Lambdas include `boto3` in `requirements.txt`. `lambda_exercise_gen` also requires `requests` (for Wiktionary API calls).
 
 ### Lambda: feedback API (`lambda_feedback_api/handler.py`)
 

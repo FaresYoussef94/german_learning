@@ -125,8 +125,22 @@ const { uploadUrl, expiresIn } = await getPresignedUrl("3", "a1");
 ### Verb
 
 ```typescript
-{ infinitive: string; perfectForm: string; case: string; english: string }
+{
+  infinitive: string;
+  perfectForm: string;
+  case: string;
+  english: string;
+  // Present-tense conjugations (optional — populated from Wiktionary during ingestion)
+  ich?: string;
+  du?: string;
+  erSieEs?: string;
+  wir?: string;
+  ihr?: string;
+  sieSie?: string;
+}
 ```
+
+`StudyVerbs` shows a second conjugation table when any verb has Wiktionary data (`v.ich` is set).
 
 ### Question
 

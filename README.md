@@ -40,6 +40,7 @@ Step Functions State Machine (20-min timeout)
        │
        └─ Step 2: ExerciseGenFunction (5 min)
           • Parse markdown tables
+          • Wiktionary API → enrich verbs with conjugations + verify noun articles/plurals
           • Bedrock → generate exercises
           • Write to DynamoDB
 
@@ -64,6 +65,7 @@ Frontend fetches via /lessons and /exercises endpoints
    - Output: 3 markdown files to ProcessedBucket
 3. **Step 2 (ExerciseGenFunction)**:
    - Parse markdown tables from ProcessedBucket
+   - Wiktionary API: enrich verbs with present-tense conjugations (ich/du/er/wir/ihr/sie), verify noun articles and plurals
    - Bedrock Claude: generate 15 noun + 15 verb exercises
    - Write to DynamoDB: `{level, typeLesson, title, nouns[], verbs[], exercises, summaryKey}`
 4. **Serving**:
@@ -175,7 +177,7 @@ Push to `main` → Amplify builds and deploys automatically
 - **Markdown files** as intermediate format: cleaner generation, smaller payloads, can be debugged separately
 - **ProcessedBucket** for summaries: avoids DynamoDB 400KB item size limit
 - **Async Textract polling**: handles large PDFs that take 30+ seconds to process
-- **boto3 >= 1.47.0**: required for modern Bedrock converse API
+- **Wiktionary enrichment**: German Wiktionary (de.wiktionary.org) provides accurate verb conjugations and noun article/plural data in structured wikitext templates
 - **Haiku model**: cost-efficient for A1-level content generation
 
 ## Troubleshooting
@@ -206,6 +208,8 @@ Push to `main` → Amplify builds and deploys automatically
 
 - `Failed to read from S3` → ProcessedBucket permissions issue
 - `json.JSONDecodeError` → Bedrock response was not valid JSON
+- `403 Client Error: Forbidden` → Wiktionary API rejected request (User-Agent issue)
+- `ConnectionError` or `Timeout` → Wiktionary API unreachable (network or rate limiting)
 
 **Check that markdown files were saved**: `aws s3 ls s3://<ProcessedBucket>/a1/01/`
 

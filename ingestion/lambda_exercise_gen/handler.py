@@ -8,9 +8,11 @@ import json
 import logging
 import os
 import re
+import time
 from datetime import datetime, timezone
 
 import boto3
+import requests
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -24,6 +26,148 @@ dynamodb = boto3.resource("dynamodb")
 PROCESSED_BUCKET = os.environ["PROCESSED_BUCKET"]
 TABLE_NAME = os.environ["TABLE_NAME"]
 MODEL_ID = os.environ.get("MODEL_ID", "us.anthropic.claude-haiku-4-5-20251001-v1:0")
+
+WIKTIONARY_API = "https://de.wiktionary.org/w/api.php"
+WIKTIONARY_HEADERS = {
+    "User-Agent": "GermanLearningApp/1.0 (https://github.com/faresjoe/german_learning; educational)"
+}
+WIKTIONARY_TIMEOUT = 20
+WIKTIONARY_MAX_RETRIES = 3
+
+
+def fetch_wiktionary_wikitext(word: str) -> str:
+    """Fetch raw wikitext for a German word from German Wiktionary.
+
+    Retries up to WIKTIONARY_MAX_RETRIES times on timeout.
+    Raises on persistent HTTP/network errors. Returns '' if word not found.
+    """
+    params = {
+        "action": "query",
+        "titles": word,
+        "prop": "revisions",
+        "rvprop": "content",
+        "rvslots": "main",
+        "format": "json",
+    }
+    for attempt in range(1, WIKTIONARY_MAX_RETRIES + 1):
+        try:
+            resp = requests.get(WIKTIONARY_API, params=params, headers=WIKTIONARY_HEADERS, timeout=WIKTIONARY_TIMEOUT)
+            resp.raise_for_status()  # raises on 4xx/5xx — fails the Lambda
+            break
+        except requests.exceptions.Timeout:
+            if attempt == WIKTIONARY_MAX_RETRIES:
+                logger.error(f"Wiktionary timed out for '{word}' after {WIKTIONARY_MAX_RETRIES} attempts")
+                raise
+            wait = 2 ** attempt
+            logger.warning(f"Timeout for '{word}' (attempt {attempt}/{WIKTIONARY_MAX_RETRIES}), retrying in {wait}s...")
+            time.sleep(wait)
+    data = resp.json()
+    pages = data["query"]["pages"]
+    page_id = list(pages.keys())[0]
+    if page_id == "-1":
+        logger.warning(f"'{word}' not found on German Wiktionary — skipping enrichment")
+        return ""
+    rev = pages[page_id]["revisions"][0]
+    # Handle both old (*) and new (slots) API response formats
+    if "slots" in rev:
+        return rev["slots"]["main"]["*"]
+    return rev.get("*", "")
+
+
+def clean_wikitext_value(text: str) -> str:
+    """Strip common wikitext markup from a template field value."""
+    # [[link|display]] → display, [[link]] → link
+    text = re.sub(r"\[\[(?:[^\]|]*\|)?([^\]]+)\]\]", r"\1", text)
+    # Remove {{templates}}
+    text = re.sub(r"\{\{[^}]*\}\}", "", text)
+    # Remove '' / ''' bold/italic markers
+    text = re.sub(r"'+", "", text)
+    return text.strip()
+
+
+def enrich_verb_with_wiktionary(verb: dict) -> dict:
+    """Add present-tense conjugations to a verb dict using German Wiktionary.
+
+    German Wiktionary uses the {{Deutsch Verb Übersicht}} template with
+    explicit Präsens_* fields, making regex extraction straightforward.
+    Falls back to the original verb dict on any failure.
+    """
+    infinitive = verb.get("infinitive", "")
+    if not infinitive:
+        return verb
+
+    wikitext = fetch_wiktionary_wikitext(infinitive)
+    if not wikitext:
+        return verb
+
+    field_patterns = {
+        "ich":     r"\|Präsens_ich\s*=\s*([^\n|{}]+)",
+        "du":      r"\|Präsens_du\s*=\s*([^\n|{}]+)",
+        "erSieEs": r"\|Präsens_er,\s*sie,\s*es\s*=\s*([^\n|{}]+)",
+        "wir":     r"\|Präsens_wir\s*=\s*([^\n|{}]+)",
+        "ihr":     r"\|Präsens_ihr\s*=\s*([^\n|{}]+)",
+        "sieSie":  r"\|Präsens_sie\s*=\s*([^\n|{}]+)",
+    }
+
+    enriched = dict(verb)
+    found = []
+    for key, pattern in field_patterns.items():
+        match = re.search(pattern, wikitext)
+        if match:
+            val = clean_wikitext_value(match.group(1))
+            if val:
+                enriched[key] = val
+                found.append(key)
+
+    # Only use what Wiktionary explicitly provides — no derivations.
+    # Derivation rules (wir=infinitive, ihr=erSieEs, etc.) break for irregular
+    # verbs (e.g. sein: wir sind, ihr seid — not "sein"/"ist").
+
+    if found:
+        logger.info(f"Enriched verb '{infinitive}' with conjugations: {found}")
+    else:
+        logger.warning(f"No Wiktionary conjugations found for '{infinitive}'")
+
+    return enriched
+
+
+def enrich_noun_with_wiktionary(noun: dict) -> dict:
+    """Verify/correct noun article and plural using German Wiktionary.
+
+    German Wiktionary uses {{Deutsch Substantiv Übersicht}} with explicit
+    Genus and Nominativ Plural fields.  Bedrock's values are kept as fallback
+    when Wiktionary has no entry for the word.
+    """
+    word = noun.get("word", "")
+    if not word:
+        return noun
+
+    wikitext = fetch_wiktionary_wikitext(word)
+    if not wikitext:
+        return noun
+
+    enriched = dict(noun)
+
+    # Genus: m → der, f → die, n → das
+    genus_match = re.search(r"\|Genus\s*=\s*([mfn])\b", wikitext)
+    if genus_match:
+        genus_map = {"m": "der", "f": "die", "n": "das"}
+        article = genus_map.get(genus_match.group(1))
+        if article:
+            enriched["article"] = article
+            logger.info(f"Verified article for '{word}': {article}")
+
+    # Nominativ Plural (handles "Nominativ Plural 1", "Nominativ Plural 2", etc.)
+    plural_match = re.search(
+        r"\|Nominativ Plural(?:\s*\d+)?\s*=\s*([^\n|{}]+)", wikitext
+    )
+    if plural_match:
+        plural = clean_wikitext_value(plural_match.group(1))
+        if plural and plural not in ("-", "—", "kein Plural", ""):
+            enriched["plural"] = plural
+            logger.info(f"Verified plural for '{word}': {plural}")
+
+    return enriched
 
 
 def read_s3_text(bucket: str, key: str) -> str:
@@ -315,6 +459,14 @@ def main(event, context):
         verbs_list = parse_markdown_table(verbs_md)
 
         logger.info(f"Parsed {len(nouns_list)} nouns, {len(verbs_list)} verbs")
+
+        # Enrich verbs with present-tense conjugations from Wiktionary
+        logger.info("Enriching verbs with Wiktionary conjugations...")
+        verbs_list = [enrich_verb_with_wiktionary(v) for v in verbs_list]
+
+        # Enrich nouns with verified article/plural from Wiktionary
+        logger.info("Enriching nouns with Wiktionary article/plural...")
+        nouns_list = [enrich_noun_with_wiktionary(n) for n in nouns_list]
 
         # Call Bedrock to generate exercises
         logger.info("Calling Bedrock to generate exercises...")

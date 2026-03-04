@@ -86,19 +86,40 @@ export class GermanLearningStack extends cdk.Stack {
       }),
     );
 
+    // ── Lambda Layer for Python dependencies (pattern3) ─────────────────────
+    const pythonDepsLayer = new lambda.LayerVersion(this, "PythonDepsLayer", {
+      code: lambda.Code.fromAsset(
+        path.join(__dirname, "../../ingestion/lambda_exercise_gen"),
+        {
+          bundling: {
+            image: lambda.Runtime.PYTHON_3_12.bundlingImage,
+            command: [
+              "bash",
+              "-c",
+              "pip install -r requirements.txt -t /asset-output/python && find /asset-output -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true",
+            ],
+          },
+        }
+      ),
+      compatibleRuntimes: [lambda.Runtime.PYTHON_3_12],
+      description: "Python dependencies for exercise generation",
+    });
+
     // ── Lambda: Step 2 - Exercise Generation ───────────────────────────────
     const exerciseGenFn = new lambda.Function(this, "ExerciseGenFunction", {
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: "handler.main",
       code: lambda.Code.fromAsset(
-        path.join(__dirname, "../../ingestion/lambda_exercise_gen"),
+        path.join(__dirname, "../../ingestion/lambda_exercise_gen")
       ),
       timeout: cdk.Duration.minutes(5),
       memorySize: 512,
+      layers: [pythonDepsLayer],
       environment: {
         PROCESSED_BUCKET: processedBucket.bucketName,
         TABLE_NAME: exercisesTable.tableName,
         MODEL_ID: "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        ...(process.env.API_KEY && { API_KEY: process.env.API_KEY }),
       },
     });
 

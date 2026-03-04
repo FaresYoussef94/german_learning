@@ -1,5 +1,15 @@
 import { useAllVerbs } from "../hooks/useLesson";
 import { MarkdownViewer } from "../components/MarkdownViewer";
+import type { Verb } from "../types";
+
+const PRONOUNS: Array<{ key: keyof Verb; label: string }> = [
+  { key: "ich",     label: "ich" },
+  { key: "du",      label: "du" },
+  { key: "erSieEs", label: "er/sie/es" },
+  { key: "wir",     label: "wir" },
+  { key: "ihr",     label: "ihr" },
+  { key: "sieSie",  label: "sie/Sie" },
+];
 
 export function StudyVerbs() {
   const { data: verbs, loading, error } = useAllVerbs("a1");
@@ -12,17 +22,35 @@ export function StudyVerbs() {
       <div className="p-6 text-slate-400 italic">No verb data available.</div>
     );
 
-  // Format verbs as markdown table
-  const content = `# All German Verbs (A1)
+  const hasConjugations = verbs.some((v) => v.ich);
+
+  // Vocabulary table (always shown)
+  const vocabTable = `# All German Verbs (A1)
 
 | Infinitive | Present Perfect | Case | English |
 |-----------|-----------------|------|---------|
 ${verbs.map((v) => `| ${v.infinitive} | ${v.perfectForm} | ${v.case} | ${v.english} |`).join("\n")}
 `;
 
+  // Conjugation table (shown only when Wiktionary data is available)
+  const conjugationTable = hasConjugations
+    ? `## Present Tense Conjugations
+
+| Infinitive | ich | du | er/sie/es | wir | ihr | sie/Sie |
+|-----------|-----|----|-----------|-----|-----|---------|
+${verbs
+  .filter((v) => v.ich)
+  .map(
+    (v) =>
+      `| ${v.infinitive} | ${v.ich} | ${v.du} | ${v.erSieEs} | ${v.wir} | ${v.ihr} | ${v.sieSie} |`
+  )
+  .join("\n")}
+`
+    : "";
+
   return (
     <div className="p-6">
-      <MarkdownViewer content={content} />
+      <MarkdownViewer content={vocabTable + conjugationTable} />
     </div>
   );
 }

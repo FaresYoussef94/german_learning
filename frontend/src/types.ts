@@ -19,6 +19,13 @@ export interface Verb {
   perfectForm: string;
   case: string;
   english: string;
+  // Present-tense conjugations (populated from Wiktionary during ingestion)
+  ich?: string;
+  du?: string;
+  erSieEs?: string;
+  wir?: string;
+  ihr?: string;
+  sieSie?: string;
 }
 
 export interface Question {

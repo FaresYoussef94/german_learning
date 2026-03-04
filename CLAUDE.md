@@ -46,6 +46,7 @@ All content (lessons, nouns, verbs, exercises) is API-driven:
    - **Step 2 (ExerciseGenFunction)**:
      - Read markdown files from ProcessedBucket
      - Parse markdown tables → structured noun/verb lists
+     - Wiktionary API: enrich verbs with present-tense conjugations (ich/du/erSieEs/wir/ihr/sieSie); verify/correct noun articles and plurals
      - Bedrock: generate exercises (nouns + verbs types only)
      - Write to DynamoDB with summaryKey pointer
 4. **Storage**: DynamoDB (single item per lesson) + ProcessedBucket (lesson summaries)
@@ -68,6 +69,7 @@ All content (lessons, nouns, verbs, exercises) is API-driven:
 - **Exercise types simplified**: nouns + verbs only (removed "lesson grammar" type)
 - **PDFs are scanned images** → Amazon Textract required for OCR
 - **Async Textract polling** with 10-min timeout (fixed: checks JobStatus not Pages[0].Status)
+- **Wiktionary enrichment**: German Wiktionary API used in Step 2 to add verb conjugations and verify noun articles/plurals; HTTP errors fail the Lambda hard; word-not-found is skipped gracefully
 - **All frontend pages fetch from API endpoints** (no static files)
 - **Performance optimization**: Cross-lesson queries use aggregates (10-50x faster than querying all lessons)
 - **User feedback curation**: Delete/improve exercises with AI regeneration via Bedrock
