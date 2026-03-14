@@ -120,8 +120,6 @@ def enrich_verb_with_wiktionary(verb: dict) -> dict:
                 found.append(key)
 
     # Only use what Wiktionary explicitly provides — no derivations.
-    # Derivation rules (wir=infinitive, ihr=erSieEs, etc.) break for irregular
-    # verbs (e.g. sein: wir sind, ihr seid — not "sein"/"ist").
 
     if found:
         logger.info(f"Enriched verb '{infinitive}' with conjugations: {found}")

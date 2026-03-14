@@ -2,16 +2,18 @@ import { useParams } from "react-router-dom";
 import { useLesson, useLessonSummary } from "../hooks/useLesson";
 import { MarkdownViewer } from "../components/MarkdownViewer";
 import { StudyQuestionCard } from "../components/StudyQuestionCard";
+import { useLevel } from "../context/LevelContext";
 
 export function StudyLessons() {
   const { lessonId } = useParams<{ lessonId: string }>();
   const id = lessonId ?? "1";
+  const { level } = useLevel();
   const { data: lesson, loading: lessonLoading, error: lessonError } = useLesson(
-    "a1",
+    level,
     id
   );
   const { data: summary, loading: summaryLoading, error: summaryError } =
-    useLessonSummary("a1", id);
+    useLessonSummary(level, id);
 
   const loading = lessonLoading || summaryLoading;
   const error = lessonError || summaryError;

@@ -309,9 +309,9 @@ def main(event, context):
     logger.info(f"Processing {key} from bucket {bucket}")
 
     try:
-        # Extract lesson number from key
+        # Extract lesson number and level from key (e.g. "a2/lesson_03.pdf" → level="a2", id=3)
         lesson_id = extract_lesson_number(key)
-        level = "a1"  # hardcoded for now
+        level = key.split("/")[0]
         logger.info(f"Extracted lesson number: {lesson_id}")
 
         # Start Textract async job

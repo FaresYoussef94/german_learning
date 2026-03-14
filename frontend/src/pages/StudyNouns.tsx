@@ -1,8 +1,10 @@
 import { useAllNouns } from "../hooks/useLesson";
 import { MarkdownViewer } from "../components/MarkdownViewer";
+import { useLevel } from "../context/LevelContext";
 
 export function StudyNouns() {
-  const { data: nouns, loading, error } = useAllNouns("a1");
+  const { level } = useLevel();
+  const { data: nouns, loading, error } = useAllNouns(level);
 
   if (loading) return <div className="p-6 text-slate-500">Loading...</div>;
   if (error)
@@ -12,8 +14,7 @@ export function StudyNouns() {
       <div className="p-6 text-slate-400 italic">No noun data available.</div>
     );
 
-  // Format nouns as markdown table
-  const content = `# All German Nouns (A1)
+  const content = `# All German Nouns (${level.toUpperCase()})
 
 | German | Article | Plural | English |
 |--------|---------|--------|---------|

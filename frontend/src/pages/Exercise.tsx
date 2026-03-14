@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useExercises, type Question } from "../hooks/useExercises";
+import { useLevel } from "../context/LevelContext";
 import {
   deleteQuestion,
   regenerateQuestion,
@@ -159,6 +160,7 @@ type ImproveModeState =
   | { phase: "preview"; previewQuestion: Question; iterationBase: Question };
 
 export function Exercise() {
+  const { level } = useLevel();
   const [searchParams, setSearchParams] = useSearchParams();
   const filterType = (searchParams.get("type") ?? "all") as FilterType;
   const filterTopic = searchParams.get("topic") ?? "all";
@@ -175,7 +177,7 @@ export function Exercise() {
   const [feedbackText, setFeedbackText] = useState("");
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
 
-  const { data, loading, error } = useExercises("a1", filterType);
+  const { data, loading, error } = useExercises(level, filterType);
 
   // Get available topics from current questions
   const availableTopics = data?.questions
@@ -247,7 +249,7 @@ export function Exercise() {
 
     try {
       await deleteQuestion(
-        "a1",
+        level,
         question.lessonId || 1,
         question.exerciseType || "nouns",
         question.question
@@ -289,7 +291,7 @@ export function Exercise() {
 
     try {
       const newQuestion = await regenerateQuestion(
-        "a1",
+        level,
         question.lessonId || 1,
         question.exerciseType || "nouns",
         question.question,
@@ -323,7 +325,7 @@ export function Exercise() {
 
     try {
       await replaceQuestion(
-        "a1",
+        level,
         question.lessonId || 1,
         question.exerciseType || "nouns",
         question.question,
@@ -353,7 +355,7 @@ export function Exercise() {
     setFeedbackError(null);
 
     regenerateQuestion(
-      "a1",
+      level,
       questions[questionIndex]?.lessonId || 1,
       questions[questionIndex]?.exerciseType || "nouns",
       questions[questionIndex]?.question || "",

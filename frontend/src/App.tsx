@@ -16,6 +16,7 @@ import { StudyVerbs } from "./pages/StudyVerbs";
 import { Exercise } from "./pages/Exercise";
 import { UploadLesson } from "./pages/UploadLesson";
 import { useLessonIndex } from "./hooks/useLesson";
+import { LevelContext, useLevel } from "./context/LevelContext";
 
 function StudyLayout({ lessons }: { lessons: LessonMeta[] }) {
   const onLessons = useMatch("/study/lessons/:lessonId");
@@ -45,7 +46,11 @@ function StudyLayout({ lessons }: { lessons: LessonMeta[] }) {
   );
 }
 
-function AppShell({ lessons }: { lessons: LessonMeta[] }) {
+function AppShell() {
+  const { level } = useLevel();
+  const { data } = useLessonIndex(level);
+  const lessons = data ?? [];
+
   return (
     <div className="flex flex-col h-screen bg-white">
       <TopNav />
@@ -61,12 +66,13 @@ function AppShell({ lessons }: { lessons: LessonMeta[] }) {
 }
 
 export default function App() {
-  const { data } = useLessonIndex("a1");
-  const lessons = data ?? [];
+  const [level, setLevel] = useState("a1");
 
   return (
     <BrowserRouter>
-      <AppShell lessons={lessons} />
+      <LevelContext.Provider value={{ level, setLevel }}>
+        <AppShell />
+      </LevelContext.Provider>
     </BrowserRouter>
   );
 }

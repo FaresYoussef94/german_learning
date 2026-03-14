@@ -1,5 +1,6 @@
 import { useAllVerbs } from "../hooks/useLesson";
 import { MarkdownViewer } from "../components/MarkdownViewer";
+import { useLevel } from "../context/LevelContext";
 import type { Verb } from "../types";
 
 const PRONOUNS: Array<{ key: keyof Verb; label: string }> = [
@@ -12,7 +13,8 @@ const PRONOUNS: Array<{ key: keyof Verb; label: string }> = [
 ];
 
 export function StudyVerbs() {
-  const { data: verbs, loading, error } = useAllVerbs("a1");
+  const { level } = useLevel();
+  const { data: verbs, loading, error } = useAllVerbs(level);
 
   if (loading) return <div className="p-6 text-slate-500">Loading...</div>;
   if (error)
@@ -25,7 +27,7 @@ export function StudyVerbs() {
   const hasConjugations = verbs.some((v) => v.ich);
 
   // Vocabulary table (always shown)
-  const vocabTable = `# All German Verbs (A1)
+  const vocabTable = `# All German Verbs (${level.toUpperCase()})
 
 | Infinitive | Present Perfect | Case | English |
 |-----------|-----------------|------|---------|

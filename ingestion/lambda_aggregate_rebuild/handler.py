@@ -130,23 +130,59 @@ def rebuild_aggregates(level: str) -> dict:
     }
 
 
+def get_all_levels(table) -> list:
+    """Scan for distinct level values that have lesson items."""
+    levels = set()
+    kwargs = {
+        "ProjectionExpression": "#lvl",
+        "ExpressionAttributeNames": {"#lvl": "level"},
+        "FilterExpression": "begins_with(typeLesson, :prefix)",
+        "ExpressionAttributeValues": {":prefix": "lesson#"},
+    }
+    while True:
+        resp = table.scan(**kwargs)
+        for item in resp.get("Items", []):
+            if "level" in item:
+                levels.add(item["level"])
+        last = resp.get("LastEvaluatedKey")
+        if not last:
+            break
+        kwargs["ExclusiveStartKey"] = last
+    return sorted(levels)
+
+
 def main(event, context):
     """Lambda handler — triggered by EventBridge every hour."""
     logger.info("Aggregate rebuild triggered")
     logger.info("Event: %s", json.dumps(event))
 
-    level = "a1"  # Currently only A1 level
+    table = dynamodb.Table(TABLE_NAME)
+    levels = get_all_levels(table)
 
-    try:
-        result = rebuild_aggregates(level)
-        logger.info(f"Rebuild complete: {result}")
-        return {
-            "statusCode": 200,
-            "body": json.dumps(result),
-        }
-    except Exception as e:
-        logger.error(f"Aggregate rebuild failed: {e}", exc_info=True)
+    if not levels:
+        logger.info("No levels found in DynamoDB — nothing to rebuild")
+        return {"statusCode": 200, "body": json.dumps({"levels": []})}
+
+    logger.info(f"Rebuilding aggregates for levels: {levels}")
+
+    results = {}
+    errors = []
+    for level in levels:
+        try:
+            result = rebuild_aggregates(level)
+            results[level] = result
+            logger.info(f"Rebuild complete for {level}: {result}")
+        except Exception as e:
+            logger.error(f"Aggregate rebuild failed for {level}: {e}", exc_info=True)
+            errors.append({"level": level, "error": str(e)})
+
+    if errors:
         return {
             "statusCode": 500,
-            "body": json.dumps({"error": str(e)}),
+            "body": json.dumps({"results": results, "errors": errors}),
         }
+
+    return {
+        "statusCode": 200,
+        "body": json.dumps({"results": results}),
+    }
