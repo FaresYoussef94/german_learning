@@ -7,7 +7,7 @@ import {
 
 export function UploadLesson() {
   const [lessonId, setLessonId] = useState("");
-  const [level, setLevel] = useState("a1");
+  const [level, setLevel] = useState("a2");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

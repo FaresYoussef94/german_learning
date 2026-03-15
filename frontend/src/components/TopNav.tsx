@@ -29,7 +29,9 @@ export function TopNav() {
     <header className="bg-blue-700 text-white shadow-md">
       {/* Row 1: brand + level selector */}
       <div className="px-4 py-2 flex items-center justify-between">
-        <span className="font-bold text-lg tracking-tight">German</span>
+        <span className="font-bold text-lg tracking-tight">
+          German Learning App
+        </span>
         {isLessons && (
           <div className="flex gap-1">
             {LEVELS.map((l) => (
@@ -71,7 +73,9 @@ export function TopNav() {
             to="/review"
             className={({ isActive }) =>
               `px-3 py-1.5 rounded font-medium text-sm whitespace-nowrap transition-colors flex items-center gap-1.5 ${
-                isActive ? "bg-white text-blue-700" : "text-blue-100 hover:bg-blue-600"
+                isActive
+                  ? "bg-white text-blue-700"
+                  : "text-blue-100 hover:bg-blue-600"
               }`
             }
           >
