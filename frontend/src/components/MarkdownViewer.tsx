@@ -8,6 +8,7 @@ interface Props {
 export function MarkdownViewer({ content }: Props) {
   return (
     <div className="bg-white rounded-lg p-6">
+      <div className="overflow-x-auto">
       <div
         className="prose max-w-none
         prose-headings:font-semibold prose-headings:text-slate-900
@@ -26,6 +27,7 @@ export function MarkdownViewer({ content }: Props) {
         prose-a:text-blue-600 prose-a:underline prose-a:hover:text-blue-700"
       >
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+      </div>
       </div>
     </div>
   );

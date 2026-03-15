@@ -5,6 +5,7 @@ import {
   Route,
   Navigate,
   useMatch,
+  useLocation,
 } from "react-router-dom";
 import type { LessonMeta } from "./types";
 import { TopNav } from "./components/TopNav";
@@ -49,18 +50,27 @@ function AppShell() {
   const { level } = useLevel();
   const { data } = useLessonIndex(level);
   const lessons = data ?? [];
+  const location = useLocation();
 
   return (
-    <div className="flex flex-col h-screen bg-white">
+    <div
+      className="flex flex-col bg-white"
+      style={{
+        height: "100dvh",
+        paddingBottom: "env(safe-area-inset-bottom)",
+      }}
+    >
       <TopNav />
-      <Routes>
-        <Route path="/" element={<Navigate to="/study/lessons/1" replace />} />
-        <Route path="/study/*" element={<StudyLayout lessons={lessons} />} />
-        <Route path="/exercise" element={<Exercise />} />
-        <Route path="/review" element={<Review />} />
-        <Route path="/upload" element={<UploadLesson />} />
-        <Route path="*" element={<Navigate to="/study/lessons/1" replace />} />
-      </Routes>
+      <div key={location.pathname} className="flex flex-col flex-1 min-h-0 page-enter">
+        <Routes>
+          <Route path="/" element={<Navigate to="/study/lessons/1" replace />} />
+          <Route path="/study/*" element={<StudyLayout lessons={lessons} />} />
+          <Route path="/exercise" element={<Exercise />} />
+          <Route path="/review" element={<Review />} />
+          <Route path="/upload" element={<UploadLesson />} />
+          <Route path="*" element={<Navigate to="/study/lessons/1" replace />} />
+        </Routes>
+      </div>
     </div>
   );
 }

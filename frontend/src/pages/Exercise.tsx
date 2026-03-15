@@ -69,14 +69,14 @@ function QuestionCard({
           </span>
           <button
             onClick={onImprove}
-            className="text-sm text-slate-600 hover:text-blue-600 transition-colors"
+            className="p-2 -m-2 text-sm text-slate-600 hover:text-blue-600 transition-colors"
             title="Improve this question"
           >
             ✏
           </button>
           <button
             onClick={onDelete}
-            className="text-sm text-slate-600 hover:text-red-600 transition-colors"
+            className="p-2 -m-2 text-sm text-slate-600 hover:text-red-600 transition-colors"
             title="Delete this question"
           >
             🗑
@@ -401,7 +401,7 @@ export function Exercise() {
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {/* Filter bar */}
-      <div className="bg-white border-b border-slate-200 px-6 py-3 flex flex-col gap-3">
+      <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-6 py-3 flex flex-col gap-3">
         {/* Type filters */}
         <div className="flex items-center gap-2">
           {(Object.keys(FILTER_LABELS) as FilterType[]).map((t) => (

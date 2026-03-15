@@ -117,6 +117,24 @@ function VerbBack({ verb }: { verb: Verb }) {
   );
 }
 
+function ReviewSkeleton() {
+  return (
+    <div className="flex flex-col h-full p-6 max-w-lg mx-auto animate-pulse">
+      <div className="mb-5">
+        <div className="h-1.5 bg-slate-100 rounded-full" />
+      </div>
+      <div className="flex-1 flex flex-col items-center justify-center gap-4">
+        <div className="w-full bg-slate-100 rounded-2xl p-5 min-h-56 flex flex-col items-center justify-center gap-4">
+          <div className="h-3 w-12 bg-slate-200 rounded" />
+          <div className="h-10 w-40 bg-slate-200 rounded" />
+          <div className="h-4 w-24 bg-slate-200 rounded" />
+        </div>
+      </div>
+      <div className="mt-6 h-12 bg-slate-100 rounded-xl" />
+    </div>
+  );
+}
+
 export function Review() {
   const { dueCards, totalCards, learnedCount, rateCard, loading, synced } = useSpacedRepetition();
 
@@ -124,6 +142,7 @@ export function Review() {
   const [sessionDone, setSessionDone] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const initialized = useRef(false);
+  const touchStartX = useRef(0);
 
   // Always wait for API sync before initializing, so both nouns and verbs
   // are included even when noun cards already exist in localStorage
@@ -146,13 +165,23 @@ export function Review() {
     setRevealed(false);
   }
 
+  function handleTouchStart(e: React.TouchEvent) {
+    touchStartX.current = e.touches[0].clientX;
+  }
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    const delta = e.changedTouches[0].clientX - touchStartX.current;
+    if (Math.abs(delta) < 60) return;
+    if (!revealed) {
+      setRevealed(true);
+      return;
+    }
+    handleRate(delta > 0 ? "easy" : "again");
+  }
+
   // Loading state
   if (loading || queue === null) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-        <div className="text-slate-400 text-lg">Loading vocabulary...</div>
-      </div>
-    );
+    return <ReviewSkeleton />;
   }
 
   const current = queue[0];
@@ -214,7 +243,11 @@ export function Review() {
 
       {/* Card */}
       <div className="flex-1 flex flex-col items-center justify-center gap-4">
-        <div className="w-full bg-white border border-slate-200 rounded-2xl shadow-sm p-5 min-h-56 flex flex-col items-center justify-center">
+        <div
+          className="w-full bg-white border border-slate-200 rounded-2xl shadow-sm p-5 min-h-56 flex flex-col items-center justify-center select-none"
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
           <div className="text-xs font-semibold text-slate-300 uppercase tracking-widest mb-6">
             {isNoun ? "Noun" : "Verb"}
           </div>
@@ -231,11 +264,13 @@ export function Review() {
           )}
         </div>
 
-        {current.repetitions > 0 && (
-          <div className="text-xs text-slate-300">
-            interval {current.interval}d · ease {current.easeFactor.toFixed(1)}
-          </div>
-        )}
+        <div className="text-xs text-slate-300">
+          {revealed
+            ? "← again · easy →"
+            : current.repetitions > 0
+              ? `interval ${current.interval}d · ease ${current.easeFactor.toFixed(1)}`
+              : "swipe or tap to reveal"}
+        </div>
       </div>
 
       {/* Action buttons */}

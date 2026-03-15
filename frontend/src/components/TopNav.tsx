@@ -26,40 +26,44 @@ export function TopNav() {
   }
 
   return (
-    <header className="bg-blue-700 text-white shadow-md">
-      {/* Row 1: brand + level selector */}
-      <div className="px-4 py-2 flex items-center justify-between">
-        <span className="font-bold text-lg tracking-tight">
-          German Learning App
-        </span>
-        {isLessons && (
-          <div className="flex gap-1">
-            {LEVELS.map((l) => (
-              <button
-                key={l}
-                onClick={() => handleLevelChange(l)}
-                className={`px-2.5 py-1 rounded text-xs font-semibold uppercase transition-colors ${
-                  level === l
-                    ? "bg-white text-blue-700"
-                    : "text-blue-100 border border-blue-500 hover:bg-blue-600"
-                }`}
-              >
-                {l.toUpperCase()}
-              </button>
-            ))}
-          </div>
-        )}
+    <header
+      className="bg-blue-700 text-white shadow-md"
+      style={{ paddingTop: "env(safe-area-inset-top)" }}
+    >
+      {/* Row 1: brand */}
+      <div className="px-4 pt-2 pb-1">
+        <span className="font-bold text-lg tracking-tight">German Learning App</span>
       </div>
 
-      {/* Row 2: nav links, scrollable on small screens */}
+      {/* Row 2: nav links + level selector inline after Lessons */}
       <div className="overflow-x-auto scrollbar-none">
-        <nav className="flex gap-1 px-4 pb-2 min-w-max">
+        <nav className="flex items-center gap-1 px-4 pb-2 min-w-max">
           <NavLink
             to={`/study/lessons/${id}`}
             className={() => navLinkClass({ isActive: !!isLessons })}
           >
             Lessons
           </NavLink>
+
+          {isLessons && (
+            <>
+              {LEVELS.map((l) => (
+                <button
+                  key={l}
+                  onClick={() => handleLevelChange(l)}
+                  className={`px-2.5 py-1 rounded text-xs font-semibold uppercase transition-colors ${
+                    level === l
+                      ? "bg-white text-blue-700"
+                      : "text-blue-100 border border-blue-500 hover:bg-blue-600"
+                  }`}
+                >
+                  {l}
+                </button>
+              ))}
+              <span className="text-blue-500 mx-1">·</span>
+            </>
+          )}
+
           <NavLink to="/study/nouns" className={navLinkClass}>
             Nouns
           </NavLink>
@@ -73,9 +77,7 @@ export function TopNav() {
             to="/review"
             className={({ isActive }) =>
               `px-3 py-1.5 rounded font-medium text-sm whitespace-nowrap transition-colors flex items-center gap-1.5 ${
-                isActive
-                  ? "bg-white text-blue-700"
-                  : "text-blue-100 hover:bg-blue-600"
+                isActive ? "bg-white text-blue-700" : "text-blue-100 hover:bg-blue-600"
               }`
             }
           >

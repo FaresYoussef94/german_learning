@@ -2,10 +2,34 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Hide scrollbar on nav strip */
 .scrollbar-none {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
 .scrollbar-none::-webkit-scrollbar {
   display: none;
+}
+
+/* Prevent iOS Safari from zooming on input focus */
+input,
+textarea,
+select {
+  font-size: max(16px, 1em);
+}
+
+/* Page fade-in on route change */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-enter {
+  animation: fadeIn 0.18s ease-out both;
 }
