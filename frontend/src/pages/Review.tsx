@@ -91,8 +91,8 @@ function VerbFront({ verb }: { verb: Verb }) {
 function VerbBack({ verb }: { verb: Verb }) {
   const hasConjugations = !!verb.ich;
   return (
-    <div className="text-center">
-      <div className="text-4xl font-bold text-slate-800 mb-1">
+    <div className="text-center w-full">
+      <div className="text-3xl font-bold text-slate-800 mb-1">
         {verb.infinitive}
       </div>
       <div className="text-slate-400 italic mb-2">{verb.english}</div>
@@ -102,10 +102,10 @@ function VerbBack({ verb }: { verb: Verb }) {
         </div>
       )}
       {hasConjugations && (
-        <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-sm max-w-xs mx-auto text-left mt-2">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm w-full mt-2">
           {PRONOUNS.map(({ key, label }) => (
-            <div key={key} className="flex gap-1.5">
-              <span className="text-slate-400 w-14 shrink-0">{label}</span>
+            <div key={key} className="flex items-baseline justify-between gap-2 border-b border-slate-100 pb-0.5">
+              <span className="text-slate-400 text-xs shrink-0">{label}</span>
               <span className="font-medium text-slate-700">
                 {(verb[key] as string | undefined) ?? "—"}
               </span>
@@ -214,7 +214,7 @@ export function Review() {
 
       {/* Card */}
       <div className="flex-1 flex flex-col items-center justify-center gap-4">
-        <div className="w-full bg-white border border-slate-200 rounded-2xl shadow-sm p-8 min-h-56 flex flex-col items-center justify-center">
+        <div className="w-full bg-white border border-slate-200 rounded-2xl shadow-sm p-5 min-h-56 flex flex-col items-center justify-center">
           <div className="text-xs font-semibold text-slate-300 uppercase tracking-widest mb-6">
             {isNoun ? "Noun" : "Verb"}
           </div>
