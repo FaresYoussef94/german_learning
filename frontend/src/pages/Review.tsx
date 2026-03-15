@@ -118,23 +118,25 @@ function VerbBack({ verb }: { verb: Verb }) {
 }
 
 export function Review() {
-  const { dueCards, totalCards, learnedCount, rateCard, loading, synced } =
-    useSpacedRepetition();
+  const { dueCards, totalCards, learnedCount, rateCard, loading, synced } = useSpacedRepetition();
 
   const [queue, setQueue] = useState<ReviewCard[] | null>(null);
   const [sessionDone, setSessionDone] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const initialized = useRef(false);
 
-  // Initialize queue once cards are ready:
-  // - `synced` = true after API-driven setCards resolves (new user path)
-  // - `!loading && totalCards > 0` = returning user already has localStorage cards
+  // Always wait for API sync before initializing, so both nouns and verbs
+  // are included even when noun cards already exist in localStorage
   useEffect(() => {
-    if (initialized.current) return;
-    if (!synced && (loading || totalCards === 0)) return;
-    setQueue([...dueCards]);
+    if (!synced || initialized.current) return;
+    const shuffled = [...dueCards];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    setQueue(shuffled);
     initialized.current = true;
-  }, [synced, loading, totalCards, dueCards]);
+  }, [synced, dueCards]);
 
   function handleRate(rating: Rating) {
     if (!queue?.[0]) return;

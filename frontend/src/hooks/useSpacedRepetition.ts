@@ -90,9 +90,9 @@ export function useSpacedRepetition() {
   const { data: nouns, loading: nounsLoading } = useAllNounsAllLevels();
   const { data: verbs, loading: verbsLoading } = useAllVerbsAllLevels();
   const [cards, setCards] = useState<Record<string, ReviewCard>>(loadCards);
-  // synced becomes true on the render after the API-driven setCards resolves,
-  // ensuring dueCards is computed from the updated cards when queue initializes
-  const [synced, setSynced] = useState(() => Object.keys(loadCards()).length > 0);
+  // synced becomes true after the API-driven setCards resolves (always false on mount,
+  // so the queue always waits for the full card set including verbs)
+  const [synced, setSynced] = useState(false);
 
   // Sync new vocabulary items into card deck once API loads
   useEffect(() => {
