@@ -1,6 +1,5 @@
-import { useAllVerbs } from "../hooks/useLesson";
+import { useAllVerbsAllLevels } from "../hooks/useLesson";
 import { MarkdownViewer } from "../components/MarkdownViewer";
-import { useLevel } from "../context/LevelContext";
 import type { Verb } from "../types";
 
 const PRONOUNS: Array<{ key: keyof Verb; label: string }> = [
@@ -13,8 +12,7 @@ const PRONOUNS: Array<{ key: keyof Verb; label: string }> = [
 ];
 
 export function StudyVerbs() {
-  const { level } = useLevel();
-  const { data: verbs, loading, error } = useAllVerbs(level);
+  const { data: verbs, loading, error } = useAllVerbsAllLevels();
 
   if (loading) return <div className="p-6 text-slate-500">Loading...</div>;
   if (error)
@@ -43,7 +41,7 @@ export function StudyVerbs() {
     })
     .join("\n");
 
-  const content = `# All German Verbs (${level.toUpperCase()})\n\n${header}\n${rows}\n`;
+  const content = `# All German Verbs\n\n${header}\n${rows}\n`;
 
   return (
     <div className="p-6">

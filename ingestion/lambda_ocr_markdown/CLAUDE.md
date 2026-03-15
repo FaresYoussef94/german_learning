@@ -11,7 +11,7 @@ Step 1 of the ingestion workflow. Performs OCR and generates markdown files.
 **Input:** `{bucket, key}` from WorkflowTriggerFunction
 
 **Flow:**
-1. Extract lesson number from S3 key (e.g., `lesson_03.pdf` → `3`)
+1. Extract lesson number and level from S3 key (e.g., `a2/lesson_03.pdf` → level=`a2`, id=`3`)
 2. Start async Textract job on raw PDF
 3. Poll every 5s until complete (timeout: 10 min)
    - **Bug fix:** Checks `response['JobStatus']` directly (not `Pages[0].Status`)
@@ -21,9 +21,9 @@ Step 1 of the ingestion workflow. Performs OCR and generates markdown files.
    - Call 2: Generate nouns markdown table
    - Call 3: Generate verbs markdown table
 6. Save 3 files to ProcessedBucket:
-   - `a1/{id:02d}/summary.md`
-   - `a1/{id:02d}/nouns.md`
-   - `a1/{id:02d}/verbs.md`
+   - `{level}/{id:02d}/summary.md`
+   - `{level}/{id:02d}/nouns.md`
+   - `{level}/{id:02d}/verbs.md`
 7. Return metadata for Step 2
 
 **Return value:**

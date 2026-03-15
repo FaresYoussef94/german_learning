@@ -17,8 +17,8 @@ Step 2 of the ingestion workflow. Parses markdown and generates exercises.
    - Verbs: `{infinitive, perfectForm, case, english}`
    - **Deduplication:** Skip duplicate entries by first column (German word/infinitive)
 3. **Wiktionary enrichment** (German Wiktionary API: `de.wiktionary.org`):
-   - Each verb: fetch `{{Deutsch Verb Übersicht}}` wikitext → extract `Präsens_*` fields → add `ich/du/erSieEs/wir/ihr/sieSie` conjugations
-   - Each noun: fetch `{{Deutsch Substantiv Übersicht}}` wikitext → extract `Genus` + `Nominativ Plural` → verify/correct `article` and `plural`
+   - Each verb: fetch `Flexion:{verb}` HTML page (`action=parse`) → parse Präsens table (all 6 forms: ich/du/erSieEs/wir/ihr/sieSie) + parse Perfekt table → extract `perfectForm` (3rd person singular, e.g. `"ist gegangen"`)
+   - Each noun: fetch raw wikitext (`action=query`) → extract `Genus` (→ der/die/das) + `Nominativ Plural` → verify/correct `article` and `plural`
    - HTTP errors (4xx/5xx) → raise exception → fail the Lambda
    - Word not found (page_id == "-1") → log warning → skip enrichment for that word
 4. Call Bedrock to generate exercises (single call, returns JSON)
@@ -44,16 +44,24 @@ Step 2 of the ingestion workflow. Parses markdown and generates exercises.
 
 ## Wiktionary enrichment
 
-**API:** `https://de.wiktionary.org/w/api.php` with `action=query&prop=revisions&rvprop=content`
-
 **User-Agent required:** Wikimedia blocks requests without a descriptive User-Agent header (403 Forbidden). The Lambda sends: `GermanLearningApp/1.0 (https://github.com/faresjoe/german_learning; educational)`
 
-**Three helper functions:**
+**Verb enrichment — `fetch_conjugations_from_flexion(infinitive)`:**
+- API: `action=parse&page=Flexion:{verb}` (rendered HTML of the conjugation page)
+- Parses Präsens section: all 6 Indikativ Aktiv forms (ich/du/erSieEs/wir/ihr/sieSie), strips archaic "veraltet:" variants
+- Parses Perfekt section: extracts `perfectForm` from 3rd person singular (e.g. `"ist gegangen"`, `"hat gemacht"`)
+- Handles both old (`bgcolor="#CCCCFF"`) and new (`style="background:#ccccff"`) Wiktionary table formats
+- Returns `{}` if page not found or Präsens table missing
 
-- `fetch_wiktionary_wikitext(word)` — fetches raw wikitext for a word; raises on HTTP errors; returns `""` if page not found
-- `clean_wikitext_value(text)` — strips `[[links]]`, `{{templates}}`, and `''markup''` from field values
-- `enrich_verb_with_wiktionary(verb)` — extracts `Präsens_ich/du/er,sie,es/wir/ihr/sie` from `{{Deutsch Verb Übersicht}}`
-- `enrich_noun_with_wiktionary(noun)` — extracts `Genus` (→ der/die/das) and `Nominativ Plural` from `{{Deutsch Substantiv Übersicht}}`
+**Noun enrichment — `enrich_noun_with_wiktionary(noun)`:**
+- API: `action=query&prop=revisions&rvprop=content` (raw wikitext)
+- Extracts `Genus` field → maps m/f/n → der/die/das
+- Extracts `Nominativ Plural` field → plural form
+- Returns original noun unchanged if not found
+
+**Helper functions:**
+- `fetch_wiktionary_wikitext(word)` — raw wikitext fetch; raises on HTTP errors; returns `""` if not found
+- `clean_wikitext_value(text)` — strips `[[links]]`, `{{templates}}`, `''markup''`
 
 **Error policy:**
 - HTTP 4xx/5xx → `raise_for_status()` propagates → Lambda fails (Step Functions workflow pauses)
@@ -127,6 +135,7 @@ Lambda role requires:
 |---|---|
 | `boto3` | AWS SDK (S3, DynamoDB, Bedrock) |
 | `requests` | HTTP client for Wiktionary API calls |
+| `beautifulsoup4` | HTML parsing for Flexion page conjugation tables |
 
 ## Error handling
 

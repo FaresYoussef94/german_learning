@@ -21,9 +21,11 @@ npm run build    # type-check + bundle → dist/
 
 ```
 src/
-├── App.tsx                      # Root component and routing
+├── App.tsx                      # Root component, routing, LevelContext provider
 ├── types.ts                     # Shared TypeScript types
-├── components/                  # TopNav, StudySubNav, Sidebar, MarkdownViewer
+├── context/
+│   └── LevelContext.ts          # React Context for selected course level (a1/a2/b1/b2)
+├── components/                  # TopNav (with level selector), StudySubNav, Sidebar, MarkdownViewer
 ├── hooks/                       # useLesson.ts (lesson data + summary fetching)
 └── pages/                       # StudyLessons, StudyNouns, StudyVerbs, Exercise
 public/
@@ -127,10 +129,10 @@ const { uploadUrl, expiresIn } = await getPresignedUrl("3", "a1");
 ```typescript
 {
   infinitive: string;
-  perfectForm: string;
+  perfectForm: string;  // sourced from Wiktionary Perfekt section (e.g. "ist gegangen")
   case: string;
   english: string;
-  // Present-tense conjugations (optional — populated from Wiktionary during ingestion)
+  // Present-tense conjugations (optional — populated from Wiktionary Flexion pages)
   ich?: string;
   du?: string;
   erSieEs?: string;
@@ -140,7 +142,7 @@ const { uploadUrl, expiresIn } = await getPresignedUrl("3", "a1");
 }
 ```
 
-`StudyVerbs` shows a second conjugation table when any verb has Wiktionary data (`v.ich` is set).
+`StudyVerbs` shows a single unified table. When conjugations are present, the table includes all 6 Präsens columns alongside the vocabulary columns. Falls back to 4-column vocabulary-only table if conjugations are missing.
 
 ### Question
 
@@ -188,6 +190,8 @@ VITE_API_KEY=<SET_API_KEY>
 - **LessonDetail interface**: Removed `summary` field (fetched separately)
 - **Module-level caches**: useLesson.ts maintains separate caches for lessons, summaries, nouns, and verbs
 - **Deduplication**: API endpoints handle cross-lesson deduplication (reflected automatically in hooks)
+- **Multi-level support**: `LevelContext` (React Context) holds the selected level; `TopNav` has A1/A2/B1/B2 selector buttons; all pages use `useLevel()` hook instead of hardcoded `"a1"`
+- **Unified verbs table**: `StudyVerbs` merges vocabulary + conjugations into one table (was two separate tables)
 
 ## Notes
 

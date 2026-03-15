@@ -1,6 +1,6 @@
 # German Learning App
 
-Full-stack German A1 study and exercise app. Monorepo with four areas:
+Full-stack German study and exercise app (A1, A2, B1, B2). Monorepo with four areas:
 
 ## Repo layout
 
@@ -42,11 +42,14 @@ All content (lessons, nouns, verbs, exercises) is API-driven:
    - **Step 1 (OcrAndMarkdownsFunction)**:
      - Amazon Textract: async OCR (poll JobStatus, 10-min timeout)
      - Bedrock: generate 3 markdown files (summary, nouns, verbs) via 3 separate calls
-     - Save to ProcessedBucket: `a1/{id:02d}/{summary,nouns,verbs}.md`
+     - Level extracted from S3 key prefix (e.g. `a2/lesson_03.pdf` → level=`a2`)
+     - Save to ProcessedBucket: `{level}/{id:02d}/{summary,nouns,verbs}.md`
    - **Step 2 (ExerciseGenFunction)**:
      - Read markdown files from ProcessedBucket
      - Parse markdown tables → structured noun/verb lists
-     - Wiktionary API: enrich verbs with present-tense conjugations (ich/du/erSieEs/wir/ihr/sieSie); verify/correct noun articles and plurals
+     - Wiktionary enrichment (deterministic, no LLM):
+       - Verbs: fetch `Flexion:{verb}` HTML page → extract all 6 Präsens forms (ich/du/erSieEs/wir/ihr/sieSie) + `perfectForm` from Perfekt section
+       - Nouns: fetch raw wikitext → extract Genus (article) and Nominativ Plural
      - Bedrock: generate exercises (nouns + verbs types only)
      - Write to DynamoDB with summaryKey pointer
 4. **Storage**: DynamoDB (single item per lesson) + ProcessedBucket (lesson summaries)
@@ -69,11 +72,13 @@ All content (lessons, nouns, verbs, exercises) is API-driven:
 - **Exercise types simplified**: nouns + verbs only (removed "lesson grammar" type)
 - **PDFs are scanned images** → Amazon Textract required for OCR
 - **Async Textract polling** with 10-min timeout (fixed: checks JobStatus not Pages[0].Status)
-- **Wiktionary enrichment**: German Wiktionary API used in Step 2 to add verb conjugations and verify noun articles/plurals; HTTP errors fail the Lambda hard; word-not-found is skipped gracefully
+- **Wiktionary enrichment** (deterministic, no LLM): verbs use `Flexion:{verb}` HTML pages for all 6 Präsens forms + perfectForm; nouns use raw wikitext for article/plural; HTTP errors fail hard; word-not-found skipped gracefully
+- **Multi-level support**: level extracted from S3 key prefix; frontend has A1/A2/B1/B2 selector (React Context); aggregate rebuild scans all levels dynamically
 - **All frontend pages fetch from API endpoints** (no static files)
 - **Performance optimization**: Cross-lesson queries use aggregates (10-50x faster than querying all lessons)
 - **User feedback curation**: Delete/improve exercises with AI regeneration via Bedrock
 - **Mobile PDF uploads**: Presigned URL endpoint allows browser-based uploads from phone without CLI/S3 app
+- **Backfill script**: `ingestion/enrich_wiktionary.py` re-enriches existing DynamoDB lessons; parallel fetch with `ThreadPoolExecutor` (default 8 workers), deduplicates across lessons
 - **Two-tier authentication**:
   - Tier 1: API Key on all endpoints (read + write) — sent via `x-api-key` header
   - Tier 2: Password on uploads only — sent in request body

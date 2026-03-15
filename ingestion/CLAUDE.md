@@ -59,9 +59,9 @@ utils.py                       (in lambda_ocr_markdown/) Comprehensive LLM instr
    - Extract nouns: `{word, article, plural, english}`
    - Extract verbs: `{infinitive, perfectForm, case, english}`
    - **Deduplication:** Skip duplicate entries by first column (German word/infinitive)
-3. Wiktionary API enrichment:
-   - Verbs: fetch present-tense conjugations (ich/du/er,sie,es/wir/ihr/sie) from `{{Deutsch Verb Übersicht}}` template
-   - Nouns: verify/correct article (Genus field) and plural (Nominativ Plural field) from `{{Deutsch Substantiv Übersicht}}` template
+3. Wiktionary API enrichment (requires `beautifulsoup4` for HTML parsing):
+   - Verbs: fetch `Flexion:{verb}` HTML page → parse Präsens table (all 6 forms: ich/du/erSieEs/wir/ihr/sieSie) + parse Perfekt table → extract `perfectForm` (3rd person singular, e.g. `"ist gegangen"`)
+   - Nouns: fetch raw wikitext → extract Genus (→ der/die/das) and Nominativ Plural → verify/correct article and plural
    - HTTP errors → fail the Lambda; word not found → skip gracefully
 4. Bedrock call: Generate exercises (single call, returns JSON)
 5. Write full lesson item to DynamoDB
@@ -78,6 +78,7 @@ utils.py                       (in lambda_ocr_markdown/) Comprehensive LLM instr
   "summaryKey": "a1/03/summary.md",
   "nouns": [{"word": "Stuhl", "article": "der", "plural": "Stühle", "english": "chair"}],
   "verbs": [{"infinitive": "gehen", "perfectForm": "ist gegangen", "case": "—", "english": "to go", "ich": "gehe", "du": "gehst", "erSieEs": "geht", "wir": "gehen", "ihr": "geht", "sieSie": "gehen"}],
+  // Note: perfectForm and conjugations (ich/du/erSieEs/wir/ihr/sieSie) are sourced from Wiktionary (not Bedrock)
   "exercises": {
     "nouns": [{"type": "multiple_choice", "topic": "article", "question": "...", "options": [...], "answer": "..."}],
     "verbs": [{"type": "fill_blank", "topic": "perfect_form", "question": "...", "answer": "..."}]
@@ -120,7 +121,7 @@ utils.py                       (in lambda_ocr_markdown/) Comprehensive LLM instr
 
 ## Dependencies
 
-All Lambdas include `boto3` in `requirements.txt`. `lambda_exercise_gen` also requires `requests` (for Wiktionary API calls).
+All Lambdas include `boto3` in `requirements.txt`. `lambda_exercise_gen` also requires `requests` (for Wiktionary API calls) and `beautifulsoup4` (for HTML parsing of Wiktionary Flexion pages).
 
 ### Lambda: feedback API (`lambda_feedback_api/handler.py`)
 
@@ -247,6 +248,8 @@ Tier 3: S3 (large text data)
 **Trigger:** EventBridge rule (every 1 hour)
 
 **Flow:**
+
+**Multi-level**: scans DynamoDB to discover all levels with lesson items (not hardcoded to a1)
 
 1. Query all lesson items (PK=level, SK begins_with "lesson#")
 2. Flatten nouns → deduplicate by word

@@ -8,13 +8,13 @@ import {
 } from "react-router-dom";
 import type { LessonMeta } from "./types";
 import { TopNav } from "./components/TopNav";
-import { StudySubNav } from "./components/StudySubNav";
 import { Sidebar } from "./components/Sidebar";
 import { StudyLessons } from "./pages/StudyLessons";
 import { StudyNouns } from "./pages/StudyNouns";
 import { StudyVerbs } from "./pages/StudyVerbs";
 import { Exercise } from "./pages/Exercise";
 import { UploadLesson } from "./pages/UploadLesson";
+import { Review } from "./pages/Review";
 import { useLessonIndex } from "./hooks/useLesson";
 import { LevelContext, useLevel } from "./context/LevelContext";
 
@@ -32,7 +32,6 @@ function StudyLayout({ lessons }: { lessons: LessonMeta[] }) {
         />
       )}
       <div className="flex-1 flex flex-col min-w-0">
-        <StudySubNav />
         <main className="flex-1 overflow-y-auto bg-white">
           <Routes>
             <Route path="lessons/:lessonId" element={<StudyLessons />} />
@@ -58,6 +57,7 @@ function AppShell() {
         <Route path="/" element={<Navigate to="/study/lessons/1" replace />} />
         <Route path="/study/*" element={<StudyLayout lessons={lessons} />} />
         <Route path="/exercise" element={<Exercise />} />
+        <Route path="/review" element={<Review />} />
         <Route path="/upload" element={<UploadLesson />} />
         <Route path="*" element={<Navigate to="/study/lessons/1" replace />} />
       </Routes>
