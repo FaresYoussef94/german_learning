@@ -26,33 +26,28 @@ export function StudyVerbs() {
 
   const hasConjugations = verbs.some((v) => v.ich);
 
-  // Vocabulary table (always shown)
-  const vocabTable = `# All German Verbs (${level.toUpperCase()})
+  const header = hasConjugations
+    ? `| Infinitive | English | Perfect | Case | ich | du | er/sie/es | wir | ihr | sie/Sie |
+|-----------|---------|---------|------|-----|----|-----------|-----|-----|---------|`
+    : `| Infinitive | English | Perfect | Case |
+|-----------|---------|---------|------|`;
 
-| Infinitive | Present Perfect | Case | English |
-|-----------|-----------------|------|---------|
-${verbs.map((v) => `| ${v.infinitive} | ${v.perfectForm} | ${v.case} | ${v.english} |`).join("\n")}
-`;
+  const rows = verbs
+    .map((v) => {
+      const base = `| ${v.infinitive} | ${v.english} | ${v.perfectForm ?? "—"} | ${v.case ?? "—"} |`;
+      if (!hasConjugations) return base;
+      return (
+        base +
+        PRONOUNS.map(({ key }) => ` ${(v[key] as string) ?? "—"} |`).join("")
+      );
+    })
+    .join("\n");
 
-  // Conjugation table (shown only when Wiktionary data is available)
-  const conjugationTable = hasConjugations
-    ? `## Present Tense Conjugations
-
-| Infinitive | ich | du | er/sie/es | wir | ihr | sie/Sie |
-|-----------|-----|----|-----------|-----|-----|---------|
-${verbs
-  .filter((v) => v.ich)
-  .map(
-    (v) =>
-      `| ${v.infinitive} | ${v.ich} | ${v.du} | ${v.erSieEs} | ${v.wir} | ${v.ihr} | ${v.sieSie} |`
-  )
-  .join("\n")}
-`
-    : "";
+  const content = `# All German Verbs (${level.toUpperCase()})\n\n${header}\n${rows}\n`;
 
   return (
     <div className="p-6">
-      <MarkdownViewer content={vocabTable + conjugationTable} />
+      <MarkdownViewer content={content} />
     </div>
   );
 }

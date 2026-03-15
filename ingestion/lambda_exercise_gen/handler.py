@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 
 import boto3
 import requests
+from bs4 import BeautifulSoup
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -85,47 +86,129 @@ def clean_wikitext_value(text: str) -> str:
     return text.strip()
 
 
-def enrich_verb_with_wiktionary(verb: dict) -> dict:
-    """Add present-tense conjugations to a verb dict using German Wiktionary.
+# Maps Flexion table row labels to conjugation field keys
+PERSON_TO_KEY = {
+    "1. Person Singular": "ich",
+    "2. Person Singular": "du",
+    "3. Person Singular": "erSieEs",
+    "1. Person Plural":   "wir",
+    "2. Person Plural":   "ihr",
+    "3. Person Plural":   "sieSie",
+}
 
-    German Wiktionary uses the {{Deutsch Verb Übersicht}} template with
-    explicit Präsens_* fields, making regex extraction straightforward.
-    Falls back to the original verb dict on any failure.
+
+def fetch_conjugations_from_flexion(infinitive: str) -> dict:
+    """Fetch Präsens conjugations and Perfekt form from the Flexion:{infinitive} page.
+
+    Returns a dict with keys ich/du/erSieEs/wir/ihr/sieSie (Präsens Indikativ Aktiv)
+    and perfectForm (Perfekt Indikativ Aktiv, 3rd person singular, e.g. "ist gegangen").
+    Returns {} if the page doesn't exist or the Präsens table can't be parsed.
     """
+    params = {
+        "action": "parse",
+        "page": f"Flexion:{infinitive}",
+        "prop": "text",
+        "format": "json",
+        "disablelimitreport": "1",
+    }
+    for attempt in range(1, WIKTIONARY_MAX_RETRIES + 1):
+        try:
+            resp = requests.get(WIKTIONARY_API, params=params, headers=WIKTIONARY_HEADERS, timeout=WIKTIONARY_TIMEOUT)
+            resp.raise_for_status()
+            break
+        except requests.exceptions.Timeout:
+            if attempt == WIKTIONARY_MAX_RETRIES:
+                logger.error(f"Wiktionary timed out for 'Flexion:{infinitive}' after {WIKTIONARY_MAX_RETRIES} attempts")
+                raise
+            wait = 2 ** attempt
+            logger.warning(f"Timeout for 'Flexion:{infinitive}' (attempt {attempt}/{WIKTIONARY_MAX_RETRIES}), retrying in {wait}s...")
+            time.sleep(wait)
+
+    data = resp.json()
+    if "error" in data:
+        logger.warning(f"'Flexion:{infinitive}' not found on German Wiktionary — skipping conjugation enrichment")
+        return {}
+
+    html = data["parse"]["text"]["*"]
+    soup = BeautifulSoup(html, "html.parser")
+
+    def is_ccccff(tag) -> bool:
+        """Match both old (bgcolor attr) and new (inline style) Wiktionary table formats."""
+        return (
+            tag.get("bgcolor", "").upper() == "#CCCCFF"
+            or "background:#ccccff" in tag.get("style", "").lower()
+        )
+
+    def extract_section(target_section: str) -> dict:
+        """Extract person→form mapping from a named section, searching all tables."""
+        for table in soup.find_all("table"):
+            forms = {}
+            in_section = False
+            section_found = False
+            for row in table.find_all("tr"):
+                all_cells = row.find_all(["td", "th"])
+                if not all_cells:
+                    continue
+                # Section header: exactly one ccccff cell
+                if len(all_cells) == 1 and is_ccccff(all_cells[0]):
+                    header_text = all_cells[0].get_text(strip=True)
+                    if header_text == target_section:
+                        in_section = True
+                        section_found = True
+                    elif in_section:
+                        break  # Next section — stop
+                    continue
+                if not in_section:
+                    continue
+                # Person data rows use <td>; sub-header rows use <th> — skip them
+                td_cells = row.find_all("td")
+                if len(td_cells) < 2:
+                    continue
+                small = td_cells[0].find("small")
+                if not small:
+                    continue
+                person_label = small.get_text(strip=True)
+                key = PERSON_TO_KEY.get(person_label)
+                if not key:
+                    continue
+                # Second td: Indikativ Aktiv — contains "pronoun form", strip pronoun prefix.
+                # Some cells append archaic variants after "veraltet:" — strip those.
+                cell_text = td_cells[1].get_text(separator=" ", strip=True)
+                veraltet_idx = cell_text.lower().find("veraltet")
+                if veraltet_idx > 0:
+                    cell_text = cell_text[:veraltet_idx].strip()
+                parts = cell_text.split(" ", 1)
+                if len(parts) == 2 and parts[1].strip() not in ("—", ""):
+                    forms[key] = parts[1].strip().rstrip(",")
+            if section_found:
+                return forms
+        return {}
+
+    result = extract_section("Präsens")
+    if not result:
+        logger.warning(f"No Präsens table found for 'Flexion:{infinitive}'")
+        return {}
+
+    perfekt = extract_section("Perfekt")
+    # Use 3rd person singular as canonical perfectForm: "er/sie/es ist gegangen" → "ist gegangen"
+    if "erSieEs" in perfekt:
+        result["perfectForm"] = perfekt["erSieEs"]
+
+    return result
+
+
+def enrich_verb_with_wiktionary(verb: dict) -> dict:
+    """Add present-tense conjugations to a verb dict using the Wiktionary Flexion page."""
     infinitive = verb.get("infinitive", "")
     if not infinitive:
         return verb
 
-    wikitext = fetch_wiktionary_wikitext(infinitive)
-    if not wikitext:
+    conjugations = fetch_conjugations_from_flexion(infinitive)
+    if not conjugations:
         return verb
 
-    field_patterns = {
-        "ich":     r"\|Präsens_ich\s*=\s*([^\n|{}]+)",
-        "du":      r"\|Präsens_du\s*=\s*([^\n|{}]+)",
-        "erSieEs": r"\|Präsens_er,\s*sie,\s*es\s*=\s*([^\n|{}]+)",
-        "wir":     r"\|Präsens_wir\s*=\s*([^\n|{}]+)",
-        "ihr":     r"\|Präsens_ihr\s*=\s*([^\n|{}]+)",
-        "sieSie":  r"\|Präsens_sie\s*=\s*([^\n|{}]+)",
-    }
-
-    enriched = dict(verb)
-    found = []
-    for key, pattern in field_patterns.items():
-        match = re.search(pattern, wikitext)
-        if match:
-            val = clean_wikitext_value(match.group(1))
-            if val:
-                enriched[key] = val
-                found.append(key)
-
-    # Only use what Wiktionary explicitly provides — no derivations.
-
-    if found:
-        logger.info(f"Enriched verb '{infinitive}' with conjugations: {found}")
-    else:
-        logger.warning(f"No Wiktionary conjugations found for '{infinitive}'")
-
+    enriched = {**verb, **conjugations}
+    logger.info(f"Enriched verb '{infinitive}' with conjugations: {list(conjugations.keys())}")
     return enriched
 
 
