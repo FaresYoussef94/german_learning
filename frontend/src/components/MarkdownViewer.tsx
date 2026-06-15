@@ -5,6 +5,20 @@ interface Props {
   content: string;
 }
 
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s-äöüß]/g, "")
+    .replace(/\s+/g, "-")
+    .trim();
+}
+
+const headingRenderer = {
+  h1: ({ children, ...props }: any) => <h1 id={slugify(String(children))} {...props}>{children}</h1>,
+  h2: ({ children, ...props }: any) => <h2 id={slugify(String(children))} {...props}>{children}</h2>,
+  h3: ({ children, ...props }: any) => <h3 id={slugify(String(children))} {...props}>{children}</h3>,
+};
+
 export function MarkdownViewer({ content }: Props) {
   return (
     <div className="bg-white rounded-lg p-6">
@@ -26,7 +40,7 @@ export function MarkdownViewer({ content }: Props) {
         prose-blockquote:text-slate-700 prose-blockquote:border-slate-300 prose-blockquote:italic
         prose-a:text-blue-600 prose-a:underline prose-a:hover:text-blue-700"
       >
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={headingRenderer}>{content}</ReactMarkdown>
       </div>
       </div>
     </div>
