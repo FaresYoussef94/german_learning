@@ -189,6 +189,36 @@ def single_lesson(level: str, lesson_id: str) -> dict:
         }
 
 
+def grammar_summary() -> dict:
+    """GET /summary — return grammar summary markdown from S3."""
+    key = 'grammar_summary_a1_b1.md'
+    try:
+        s3_response = s3.get_object(Bucket=PROCESSED_BUCKET, Key=key)
+        content = s3_response['Body'].read().decode('utf-8')
+        return {
+            'statusCode': 200,
+            'headers': {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, OPTIONS',
+                'Content-Type': 'text/markdown',
+            },
+            'body': content,
+        }
+    except s3.exceptions.NoSuchKey:
+        return {
+            'statusCode': 404,
+            'headers': get_headers(),
+            'body': json.dumps({'error': 'summary_not_found'}),
+        }
+    except Exception as e:
+        logger.error(f"Grammar summary fetch failed: {e}")
+        return {
+            'statusCode': 500,
+            'headers': get_headers(),
+            'body': json.dumps({'error': 'internal_error'}),
+        }
+
+
 def lesson_summary(level: str, lesson_id: str) -> dict:
     """GET /lessons/{level}/{lessonId}/summary — return markdown summary from S3."""
     lesson_id_int = int(lesson_id)
@@ -267,11 +297,16 @@ def main(event, context):
         }
 
     # Route based on resource template
+    # /summary/{level}
     # /lessons/{level}/nouns
     # /lessons/{level}/verbs
     # /lessons/{level}/{lessonId}/summary
     # /lessons/{level}/{lessonId}
     # /lessons/{level}
+
+    # Handle /summary route
+    if path.startswith('/summary'):
+        return grammar_summary()
 
     level = path_params.get('level', '').lower()
 

@@ -73,6 +73,9 @@ export function TopNav() {
           <NavLink to="/exercise" className={navLinkClass}>
             Exercise
           </NavLink>
+          <NavLink to="/summary" className={navLinkClass}>
+            Summary
+          </NavLink>
           <NavLink
             to="/review"
             className={({ isActive }) =>

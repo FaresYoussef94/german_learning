@@ -16,6 +16,7 @@ import { StudyVerbs } from "./pages/StudyVerbs";
 import { Exercise } from "./pages/Exercise";
 import { UploadLesson } from "./pages/UploadLesson";
 import { Review } from "./pages/Review";
+import { Summary } from "./pages/Summary";
 import { useLessonIndex } from "./hooks/useLesson";
 import { LevelContext, useLevel } from "./context/LevelContext";
 
@@ -67,6 +68,7 @@ function AppShell() {
           <Route path="/study/*" element={<StudyLayout lessons={lessons} />} />
           <Route path="/exercise" element={<Exercise />} />
           <Route path="/review" element={<Review />} />
+          <Route path="/summary" element={<Summary />} />
           <Route path="/upload" element={<UploadLesson />} />
           <Route path="*" element={<Navigate to="/study/lessons/1" replace />} />
         </Routes>

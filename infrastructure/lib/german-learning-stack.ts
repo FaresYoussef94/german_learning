@@ -341,6 +341,13 @@ export class GermanLearningStack extends cdk.Stack {
       new apigateway.LambdaIntegration(lessonApiFn),
     );
 
+    // Grammar summary route: GET /summary
+    const summary = api.root.addResource("summary");
+    summary.addMethod(
+      "GET",
+      new apigateway.LambdaIntegration(lessonApiFn),
+    );
+
     // GET /lessons/{level}/nouns
     const lessonsNouns = lessonsByLevel.addResource("nouns");
     lessonsNouns.addMethod(
